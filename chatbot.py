@@ -28,14 +28,14 @@ Here's some text.
 
 Next paragraph here."""
 
-# Connect to Claude
+# Connect to Claude.
 claude = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
 def format_response(text):
-    # Replace various bullet styles with unified bullet
+    # Replace various bullet styles with a unified bullet style.
     text = text.replace('- ', '• ').replace('* ', '• ')
     
-    # Split into lines and process
+    # Split text into lines, and then process it.
     lines = text.split('\n')
     formatted = []
     last_was_bullet = False
@@ -47,53 +47,53 @@ def format_response(text):
         is_bullet = line.startswith('• ')
         is_empty = len(line) == 0
         
-        # Handle bullet points
+        # Handle bullet points.
         if is_bullet:
             if not in_bullet_list:
-                # Add blank lines before first bullet in a list
+                # Add blank lines before the first bullet in a list.
                 formatted.append('')
                 formatted.append('')
                 in_bullet_list = True
-            formatted.append(line)  # Add bullet point
+            formatted.append(line) # Add a bullet point.
             last_was_bullet = True
             last_was_empty = False
-        # Handle paragraph transitions
+        # Handle paragraph transitions.
         elif not is_empty and i > 0 and not last_was_empty and not last_was_bullet:
-            # This is a new paragraph (not after a bullet or empty line)
-            # Add double line break before new paragraph
+            # This is a new paragraph (not after a bullet or empty line).
+            # Add a double line break before a new paragraph.
             formatted.append('')
             formatted.append('')
             formatted.append(line)
             last_was_bullet = False
             last_was_empty = False
             in_bullet_list = False
-        # Handle end of bullet list
+        # Handle the end of a bulleted list.
         elif last_was_bullet and not is_empty:
-            # Transitioning from bullets to text
+            # Transition from bullets to text.
             formatted.append('')
             formatted.append('')
             formatted.append(line)
             last_was_bullet = False
             last_was_empty = False
             in_bullet_list = False
-        # Handle regular content
+        # Handle regular content.
         elif not is_empty:
             formatted.append(line)
             last_was_bullet = False
             last_was_empty = False
-        # Track empty lines
+        # Track empty lines.
         else:
             last_was_empty = True
-            # Only add one empty line to avoid excessive spacing
+            # Only add one empty line to avoid excessive spacing.
             if not (i > 0 and not formatted[-1]):
                 formatted.append('')
     
     result = '\n'.join(formatted)
     
-    # Ensure each bullet starts on a new line
+    # Ensure each bullet starts on a new line.
     result = result.replace(' • ', '\n• ')
     
-    # Clean up any instances of more than two consecutive newlines
+    # Clean up any instances of more than two consecutive newlines.
     while '\n\n\n' in result:
         result = result.replace('\n\n\n', '\n\n')
     
@@ -129,11 +129,11 @@ def split_message(message, max_length=500):
     parts = []
     current_part = ""
     
-    # Split on paragraphs first to preserve structure
+    # Split on paragraphs first to preserve structure.
     paragraphs = message.split('\n\n')
     
     for paragraph in paragraphs:
-        # If adding this paragraph exceeds max length and we already have content
+        # If adding this paragraph exceeds max length and we already have content, then break it onto a new paragraph.
         if current_part and len(current_part) + len(paragraph) + 2 > max_length:
             parts.append(current_part)
             current_part = paragraph
@@ -145,7 +145,7 @@ def split_message(message, max_length=500):
     if current_part:
         parts.append(current_part)
     
-    # Add part numbers
+    # Add part numbers to indicate responses length.
     return [f"{part}\n[{i+1}/{len(parts)}]" for i, part in enumerate(parts)]
 
 def send_signal_message(to_number, message, proc):
@@ -154,7 +154,7 @@ def send_signal_message(to_number, message, proc):
         return
     
     try:
-        # Split message if needed
+        # Split the message if needed.
         message_parts = split_message(message)
         
         for part in message_parts:
@@ -217,7 +217,7 @@ def main():
         if proc.poll() is not None:
             print("Detected that signal-cli has stopped. Restarting...")
             proc = start_signal_cli_jsonrpc()
-            time.sleep(2)  # small wait to ensure it's ready
+            time.sleep(2) # Add a small wait time to ensure signal-cli is ready.
 
         try:
             for sender, message in listen_for_messages(proc):
@@ -230,7 +230,7 @@ def main():
                     max_retries = 3
                     for attempt in range(max_retries):
                         try:
-                            send_signal_message(sender, answer, proc)  # Pass proc here
+                            send_signal_message(sender, answer, proc)
                             print(f"Successfully sent message to {sender} (attempt {attempt + 1})")
                             break
                         except Exception as send_error:
