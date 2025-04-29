@@ -6,3 +6,8 @@ ANTHROPIC_API_KEY = "<API_KEY>"
 
 # Your registered Signal phone number (must start with '+', followed by your country code and phone number)
 SIGNAL_NUMBER = "+<PHONE_NUMBER>"
+
+# The system prompt for the AI assistant
+SYSTEM_PROMPT = """
+<PROMPT>
+"""

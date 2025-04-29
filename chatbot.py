@@ -5,30 +5,9 @@ import os
 import signal
 import psutil
 import anthropic
-from config import ANTHROPIC_API_KEY, SIGNAL_NUMBER
+from config import ANTHROPIC_API_KEY, SIGNAL_NUMBER, SYSTEM_PROMPT
 
-SYSTEM_PROMPT = """You are a helpful AI assistant. Please provide clear, concise, and accurate responses. 
-Keep your answers friendly but direct. If you're unsure about something, say so.
-Your responses should be no more than 1,800 characters long. Format your responses as follows:
-
-Break chunks of content into paragraphs. Each paragraph should be separated by two line breaks both before and after the paragraph.
-
-When using bullet points:
-1. Add TWO line breaks before the first bullet
-2. Start EACH bullet with '• '
-3. Add TWO line breaks after the last bullet
-
-Example format:
-
-Here's some text.
-
-• First bullet
-• Second bullet
-• Third bullet
-
-Next paragraph here."""
-
-# Connect to Claude.
+# Connect to Claude
 claude = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
 def format_response(text):
