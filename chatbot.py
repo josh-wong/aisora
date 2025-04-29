@@ -7,7 +7,7 @@ import psutil
 import anthropic
 import uuid
 from config import ANTHROPIC_API_KEY, SIGNAL_NUMBER, SYSTEM_PROMPT
-from db_utils import log_conversation
+from db_utils import log_conversation, get_recent_conversation_history
 
 # Connect to Claude.
 claude = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
@@ -157,14 +157,28 @@ def send_signal_message(to_number, message, proc):
     except Exception as e:
         print(f"Failed to send message via JSON-RPC: {e}")
 
-def ask_claude(question):
+def format_conversation_history(history):
+    formatted = []
+    for entry in history:
+        formatted.extend([
+            {"role": "user", "content": entry['query']},
+            {"role": "assistant", "content": entry['response']}
+        ])
+    return formatted
+
+def ask_claude(question, conversation_id=None):
+    messages = [{"role": "user", "content": question}]
+    
+    if conversation_id:
+        history = get_recent_conversation_history(conversation_id)
+        if history:
+            messages = format_conversation_history(history) + messages
+    
     response = claude.messages.create(
         model="claude-3-5-haiku-20241022",
         max_tokens=8192,
         system=SYSTEM_PROMPT,
-        messages=[
-            {"role": "user", "content": question}
-        ]
+        messages=messages
     )
     return format_response(response.content[0].text)
 
@@ -212,7 +226,7 @@ def main():
                     conversations[sender] = str(uuid.uuid4())
 
                 try:
-                    answer = ask_claude(message)
+                    answer = ask_claude(message, conversations[sender])
                     print(f"Claude's answer: {answer}")
                     
                     # Log the conversation.

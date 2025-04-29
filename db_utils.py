@@ -23,3 +23,17 @@ def get_conversation_history(conversation_id):
                 ORDER BY timestamp ASC
             """, (conversation_id,))
             return cur.fetchall()
+
+def get_recent_conversation_history(conversation_id, limit=5):
+    """Get the most recent conversation history for context"""
+    with get_db_connection() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                SELECT timestamp, query, response 
+                FROM query_log 
+                WHERE conversation_id = %s 
+                ORDER BY timestamp DESC 
+                LIMIT %s
+            """, (conversation_id, limit))
+            history = cur.fetchall()
+            return list(reversed(history))
