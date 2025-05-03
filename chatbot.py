@@ -199,9 +199,16 @@ def listen_for_messages(proc):
             source = envelope.get("source")
             message_data = envelope.get("dataMessage", {})
             message_text = message_data.get("message")
+            
+            # Check if the message is in a group chat.
+            is_group = False
+            group_id = None
+            if "groupInfo" in message_data:
+                is_group = True
+                group_id = message_data["groupInfo"].get("groupId")
 
             if source and message_text:
-                yield source, message_text
+                yield source, message_text, is_group, group_id
 
 def main():
     kill_existing_signal_cli()
@@ -218,7 +225,7 @@ def main():
             time.sleep(2) # Add a small wait time to ensure signal-cli is ready.
 
         try:
-            for sender, message in listen_for_messages(proc):
+            for sender, message, is_group, group_id in listen_for_messages(proc):
                 print(f"Received from {sender}: {message}")
 
                 # Get or create conversation ID for this sender.
@@ -230,7 +237,7 @@ def main():
                     print(f"Claude's answer: {answer}")
                     
                     # Log the conversation.
-                    log_conversation(sender, message, answer, conversations[sender])
+                    log_conversation(sender, message, answer, conversations[sender], is_group, group_id)
                     
                     max_retries = 3
                     for attempt in range(max_retries):
