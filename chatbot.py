@@ -5,9 +5,11 @@ import os
 import signal
 import psutil
 import anthropic
+import uuid
 from config import ANTHROPIC_API_KEY, SIGNAL_NUMBER, SYSTEM_PROMPT
+from db_utils import log_conversation, get_recent_conversation_history
 
-# Connect to Claude
+# Connect to Claude.
 claude = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
 def format_response(text):
@@ -155,14 +157,28 @@ def send_signal_message(to_number, message, proc):
     except Exception as e:
         print(f"Failed to send message via JSON-RPC: {e}")
 
-def ask_claude(question):
+def format_conversation_history(history):
+    formatted = []
+    for entry in history:
+        formatted.extend([
+            {"role": "user", "content": entry['query']},
+            {"role": "assistant", "content": entry['response']}
+        ])
+    return formatted
+
+def ask_claude(question, conversation_id=None):
+    messages = [{"role": "user", "content": question}]
+    
+    if conversation_id:
+        history = get_recent_conversation_history(conversation_id)
+        if history:
+            messages = format_conversation_history(history) + messages
+    
     response = claude.messages.create(
         model="claude-3-5-haiku-20241022",
         max_tokens=8192,
         system=SYSTEM_PROMPT,
-        messages=[
-            {"role": "user", "content": question}
-        ]
+        messages=messages
     )
     return format_response(response.content[0].text)
 
@@ -192,6 +208,9 @@ def main():
     proc = start_signal_cli_jsonrpc()
     print("Listening for incoming messages...")
 
+    # Store conversation IDs.
+    conversations = {}
+
     while True:
         if proc.poll() is not None:
             print("Detected that signal-cli has stopped. Restarting...")
@@ -202,9 +221,16 @@ def main():
             for sender, message in listen_for_messages(proc):
                 print(f"Received from {sender}: {message}")
 
+                # Get or create conversation ID for this sender.
+                if sender not in conversations:
+                    conversations[sender] = str(uuid.uuid4())
+
                 try:
-                    answer = ask_claude(message)
+                    answer = ask_claude(message, conversations[sender])
                     print(f"Claude's answer: {answer}")
+                    
+                    # Log the conversation.
+                    log_conversation(sender, message, answer, conversations[sender])
                     
                     max_retries = 3
                     for attempt in range(max_retries):
