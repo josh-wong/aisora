@@ -4,7 +4,7 @@
 # Your Claude API key
 ANTHROPIC_API_KEY = "<API_KEY>"
 
-# PostgreSQL Database Configuration
+# Your PostgreSQL database configuration
 DB_CONFIG = {
     'dbname': '<DATABASE_NAME>',
     'user': '<USERNAME>',
