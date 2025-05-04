@@ -1,3 +1,4 @@
+# This script is designed to run indefinitely, listening for incoming messages and responding as needed.
 import subprocess
 import json
 import time

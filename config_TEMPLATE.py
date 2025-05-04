@@ -1,5 +1,5 @@
-# Be sure to remove "_TEMPLATE" from the filename before using it.
 # Configuration file for Claugnal, a Claude-based AI assistant for Signal. This file contains sensitive information. Do not share it with anyone.
+# IMPORTANT: Be sure to remove "_TEMPLATE" from the filename before using it.
 
 # Your Claude API key
 ANTHROPIC_API_KEY = "<API_KEY>"
