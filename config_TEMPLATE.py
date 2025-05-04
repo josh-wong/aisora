@@ -16,6 +16,10 @@ DB_CONFIG = {
 # Your registered Signal phone number (must start with '+', followed by your country code and phone number)
 SIGNAL_NUMBER = "+<PHONE_NUMBER>"
 
+# Bot name for mentions in group chats
+AI_ASSISTANT_FIRST_NAME = "AI"
+AI_ASSISTANT_LAST_NAME = "assistant"
+
 # The system prompt for the AI assistant
 SYSTEM_PROMPT = """
 <PROMPT>
