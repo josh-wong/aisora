@@ -205,6 +205,12 @@ def listen_for_messages(proc):
             params = data.get("params", {})
             envelope = params.get("envelope", {})
             source = envelope.get("source")
+            
+            # Extract the sender's name if available.
+            sender_name = None
+            if "sourceName" in envelope:
+                sender_name = envelope.get("sourceName")
+            
             message_data = envelope.get("dataMessage", {})
             message_text = message_data.get("message")
             
@@ -225,7 +231,7 @@ def listen_for_messages(proc):
                     break
             
             if source and message_text:
-                yield source, message_text, is_group, group_id, is_mentioned
+                yield source, message_text, is_group, group_id, is_mentioned, sender_name
 
 def check_for_mention(message):
     """Check if the assistant was mentioned in the message"""
@@ -352,7 +358,7 @@ def main():
             time.sleep(2) # Add a small wait time to ensure signal-cli is ready.
 
         try:
-            for sender, message, is_group, group_id, is_mentioned in listen_for_messages(proc):
+            for sender, message, is_group, group_id, is_mentioned, sender_name in listen_for_messages(proc):
                 print(f"Received from {sender}: {message}")
                 
                 # Only respond if it's a direct message OR if it's a group message that mentions the assistant.
@@ -374,7 +380,7 @@ def main():
                         
                         # Log the conversation.
                         formatted_message = format_mentions_for_db(message)
-                        log_conversation(sender, formatted_message, answer, conversations[convo_key], is_group, group_id)
+                        log_conversation(sender, formatted_message, answer, conversations[convo_key], is_group, group_id, sender_name)
                         
                         max_retries = 3
                         for attempt in range(max_retries):
