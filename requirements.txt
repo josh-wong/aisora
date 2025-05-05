@@ -1,4 +1,7 @@
 anthropic
 flask
+geopy
+phonenumbers
 psutil
 psycopg2-binary
+requests

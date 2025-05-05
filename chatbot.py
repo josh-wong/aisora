@@ -10,6 +10,10 @@ import uuid
 import re
 from config import ANTHROPIC_API_KEY, SIGNAL_NUMBER, SYSTEM_PROMPT, AI_ASSISTANT_NICKNAME
 from db_utils import log_conversation, get_recent_conversation_history
+from location_utils import get_location_from_phone_number, clear_location_cache
+
+# Set an environment variable to enable IP-based location fallback.
+os.environ['ALLOW_IP_FALLBACK'] = 'true'
 
 # Connect to Claude.
 claude = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
@@ -350,6 +354,8 @@ def main():
 
     # Store conversation IDs.
     conversations = {}
+    last_cache_clear = time.time()
+    cache_clear_interval = 3600  # Clear location cache every hour.
 
     while True:
         if proc.poll() is not None:
@@ -357,9 +363,28 @@ def main():
             proc = start_signal_cli_jsonrpc()
             time.sleep(2) # Add a small wait time to ensure signal-cli is ready.
 
+        # Periodically clear the location cache to ensure fresh lookups.
+        current_time = time.time()
+        if current_time - last_cache_clear > cache_clear_interval:
+            clear_location_cache()
+            last_cache_clear = current_time
+            print("Location cache cleared due to scheduled refresh")
+
         try:
             for sender, message, is_group, group_id, is_mentioned, sender_name in listen_for_messages(proc):
                 print(f"Received from {sender}: {message}")
+                
+                # Try to extract location from phone number if it starts with a +.
+                country = city = possible_carrier = location = None
+                if sender and isinstance(sender, str) and sender.startswith('+'):
+                    # Force a refresh on each message to ensure that the latest data is available.
+                    location_info = get_location_from_phone_number(sender, force_refresh=True)
+                    if location_info:
+                        country = location_info.get('country')
+                        city = location_info.get('city')
+                        possible_carrier = location_info.get('possible_carrier')
+                        location = location_info.get('location')
+                        print(f"Extracted location from phone number: {country}, {city}, {possible_carrier}, {location}")
                 
                 # Only respond if it's a direct message OR if it's a group message that mentions the assistant.
                 # First check official mentions from the metadata, then fall back to text-based detection.
@@ -378,9 +403,21 @@ def main():
                         answer = ask_claude(processed_message, conversations[convo_key])
                         print(f"Claude's answer: {answer}")
                         
-                        # Log the conversation.
+                        # Log the conversation with all location data available.
                         formatted_message = format_mentions_for_db(message)
-                        log_conversation(sender, formatted_message, answer, conversations[convo_key], is_group, group_id, sender_name)
+                        log_conversation(
+                            sender, 
+                            formatted_message, 
+                            answer, 
+                            conversations[convo_key], 
+                            is_group, 
+                            group_id, 
+                            sender_name,
+                            country,
+                            city,
+                            possible_carrier,
+                            location
+                        )
                         
                         max_retries = 3
                         for attempt in range(max_retries):
