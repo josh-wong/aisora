@@ -1,3 +1,3 @@
-# Claugnal
+# Signal AI Assistant
 
-Claugnal is a Claude-based AI assistant for Signal.
+Basic AI assistant for Signal.

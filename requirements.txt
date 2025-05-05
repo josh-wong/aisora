@@ -1,4 +1,3 @@
 anthropic
 flask
 psutil
-psycopg2-binary
