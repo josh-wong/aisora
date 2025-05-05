@@ -5,13 +5,15 @@ from config import DB_CONFIG
 def get_db_connection():
     return psycopg2.connect(**DB_CONFIG)
 
-def log_conversation(sender, query, response, conversation_id):
+def log_conversation(sender, query, response, conversation_id, is_group=False, group_id=None, sender_name=None):
+    """Log a conversation to the database."""
     with get_db_connection() as conn:
         with conn.cursor() as cur:
-            cur.execute("""
-                INSERT INTO query_log (sender, query, response, conversation_id)
-                VALUES (%s, %s, %s, %s)
-            """, (sender, query, response, conversation_id))
+            cur.execute('''
+                INSERT INTO query_log 
+                (sender, query, response, timestamp, conversation_id, is_group, group_id, sender_name)
+                VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s)
+            ''', (sender, query, response, conversation_id, is_group, group_id, sender_name))
         conn.commit()
 
 def get_conversation_history(conversation_id):

@@ -1,10 +1,10 @@
-# Configuration file for the Signal AI assistant. This file contains sensitive information. Do not share it with anyone.
-# Be sure to remove "_TEMPLATE" from the filename before using it.
+# Configuration file for Claugnal, a Claude-based AI assistant for Signal. This file contains sensitive information. Do not share it with anyone.
+# IMPORTANT: Be sure to remove "_TEMPLATE" from the filename before using it.
 
 # Your Claude API key
 ANTHROPIC_API_KEY = "<API_KEY>"
 
-# PostgreSQL Database Configuration
+# Your PostgreSQL database configuration
 DB_CONFIG = {
     'dbname': '<DATABASE_NAME>',
     'user': '<USERNAME>',
@@ -15,6 +15,9 @@ DB_CONFIG = {
 
 # Your registered Signal phone number (must start with '+', followed by your country code and phone number)
 SIGNAL_NUMBER = "+<PHONE_NUMBER>"
+
+# Bot name for mentions in group chats
+AI_ASSISTANT_NICKNAME = "Claugnal"
 
 # The system prompt for the AI assistant
 SYSTEM_PROMPT = """
