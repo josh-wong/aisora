@@ -17,8 +17,7 @@ DB_CONFIG = {
 SIGNAL_NUMBER = "+<PHONE_NUMBER>"
 
 # Bot name for mentions in group chats
-AI_ASSISTANT_FIRST_NAME = "Claugnal"
-AI_ASSISTANT_LAST_NAME = ""
+AI_ASSISTANT_NICKNAME = "Claugnal"
 
 # The system prompt for the AI assistant
 SYSTEM_PROMPT = """
