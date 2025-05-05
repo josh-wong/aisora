@@ -311,6 +311,32 @@ def remove_mention(message):
     
     return result
 
+def format_mentions_for_db(message):
+    """Format message to replace replacement characters with proper @ symbol for database storage"""
+    # Look for various encodings of the @ symbol that Signal might use.
+    replacements = {
+        '￼': '@',
+        '\ufffc': '@', 
+        '\xef\xbf\xbc': '@',
+        '\uFEFF': '@', 
+        '﹫': '@',
+    }
+    
+    processed_message = message
+    for char, replacement in replacements.items():
+        processed_message = processed_message.replace(char, replacement)
+    
+    # Ensure the AI_ASSISTANT_NICKNAME is properly captured in mentions.
+    nickname = AI_ASSISTANT_NICKNAME
+    
+    # Look for partial mentions that might be missing the nickname.
+    partial_mention_pattern = r'@\s*(?!' + re.escape(nickname) + r')'
+    if re.search(partial_mention_pattern, processed_message):
+        # If there's an @ without the nickname, make sure to add it.
+        processed_message = re.sub(partial_mention_pattern, '@' + nickname + ' ', processed_message)
+    
+    return processed_message
+
 def main():
     kill_existing_signal_cli()
     proc = start_signal_cli_jsonrpc()
@@ -347,7 +373,8 @@ def main():
                         print(f"Claude's answer: {answer}")
                         
                         # Log the conversation.
-                        log_conversation(sender, message, answer, conversations[convo_key], is_group, group_id)
+                        formatted_message = format_mentions_for_db(message)
+                        log_conversation(sender, formatted_message, answer, conversations[convo_key], is_group, group_id)
                         
                         max_retries = 3
                         for attempt in range(max_retries):
