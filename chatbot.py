@@ -5,7 +5,7 @@ import os
 import signal
 import psutil
 import anthropic
-from config import ANTHROPIC_API_KEY, SIGNAL_NUMBER, SYSTEM_PROMPT
+from config import ANTHROPIC_API_KEY, SIGNAL_NUMBER, SYSTEM_PROMPT, MODEL_CONFIG
 
 # Connect to Claude
 claude = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
@@ -157,8 +157,9 @@ def send_signal_message(to_number, message, proc):
 
 def ask_claude(question):
     response = claude.messages.create(
-        model="claude-3-5-haiku-20241022",
-        max_tokens=8192,
+        model=MODEL_CONFIG['model'],
+        max_tokens=MODEL_CONFIG['max_tokens'],
+        temperature=MODEL_CONFIG['temperature'],
         system=SYSTEM_PROMPT,
         messages=[
             {"role": "user", "content": question}
