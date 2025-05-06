@@ -89,7 +89,7 @@ Open **config_TEMPLATE.py**, and edit the following configurations as described 
 Start Claugnal by running the following command:
    
    ```shell
-   python chatbot.py
+   python claugnal.py
    ```
 
 ## Stop Claugnal
