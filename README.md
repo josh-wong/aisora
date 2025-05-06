@@ -1,12 +1,13 @@
-# Signal AI Assistant
+# Aisora, an AI assistant for Signal
 
-Claugnal is a Claude-based AI assistant for Signal.
+Aisora is an AI assistant for Signal with support for both Claude and Llama models.
 
 ## Features
 
-- Natural language conversation with a Claude-based LLM in direct messages or in group chats by mentioning @Claugnal
+- Natural language conversation with AI models in direct messages or in group chats by mentioning @Aisora
+- Support for Claude-based and Llama-based LLMs
 - Message history within conversations
-- Logging of user data.
+- Logging of user data
 
 ## Maintenance support policy
 
@@ -21,14 +22,15 @@ Major, minor, and patch versions are supported only until the latest version is 
 - Python 3.11 or later
 - Signal Desktop application
 - Anthropic API key (for Claude access)
+- Ollama installation (for Llama models access)
 
-## Install Claugnal
+## Install Aisora
 
 1. Open **Terminal**. Then, clone this repository by running the following command:
 
    ```shell
-   git clone https://github.com/josh-wong/claugnal.git
-   cd claugnal
+   git clone https://github.com/josh-wong/aisora.git
+   cd aisora
    ```
 
 2. Install the Python dependencies by running the following command:
@@ -44,6 +46,7 @@ Open **config_TEMPLATE.py**, and edit the following configurations as described 
    - `ANTHROPIC_API_KEY`
    - `SIGNAL_NUMBER`
    - `SYSTEM_PROMPT`
+   - `windows_model_path` (for Llama models only)
    
    > [!IMPORTANT]
    >
@@ -52,18 +55,18 @@ Open **config_TEMPLATE.py**, and edit the following configurations as described 
    
    > [!NOTE]
    >
-   > The default Claude model that Claugnal uses **claude-3-5-haiku-20241022**. You can change to a different Claude model in the configuration file.
+   > The default Claude model is **claude-3-5-haiku-20241022**. You can change to a different Claude model in the configuration file.
    >
-   > In addition, you can set `max_tokens` and `temperature` to different values, according to your needs.
+   > When using Llama models, make sure that you've downloaded a Llama .gguf file from Hugging Face. You must then specify the path of that model in the configuration file.
 
-## Start Claugnal
+## Start Aisora
 
-Start Claugnal by running the following command:
+Start Aisora by running the following command:
    
    ```shell
-   python chatbot.py
+   python aisora.py
    ```
 
-## Stop Claugnal
+## Stop Aisora
 
-Stop Claugnal by pressing **Ctrl + C** to stop the script or close Terminal.
+Stop Aisora by pressing **Ctrl + C** to stop the script or close Terminal.
