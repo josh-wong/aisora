@@ -1,12 +1,13 @@
-# Claugnal
+# Aisora, an AI assistant for Signal
 
-Claugnal is a Claude-based AI assistant for Signal.
+Aisora is an AI assistant for Signal with support for both Claude and Llama models.
 
 ## Features
 
-- Natural language conversation with a Claude-based LLM in direct messages or in group chats by mentioning @Claugnal
+- Natural language conversation with AI models in direct messages or in group chats by mentioning @Aisora
+- Support for Claude-based and Llama-based LLMs
 - Message history within conversations
-- Logging of user data.
+- Logging of user data
 
 ## Maintenance support policy
 
@@ -22,14 +23,26 @@ Major, minor, and patch versions are supported only until the latest version is 
 - PostgreSQL database
 - Signal Desktop application
 - Anthropic API key (for Claude access)
+- Ollama installation (for Llama models access)
 
-## Install Claugnal
+## Install Aisora
 
 1. Open **Terminal**. Then, clone this repository by running the following command:
 
    ```shell
-   git clone https://github.com/josh-wong/claugnal.git
-   cd claugnal
+   git clone https://github.com/josh-wong/aisora.git
+   ```
+
+   If you want to use Claude, run the following command:
+   
+   ```shell
+   cd aisora/claude
+   ```
+
+   If you want to use Llama, run the following command:
+   
+   ```shell
+   cd aisora/llama
    ```
 
 2. Install the Python dependencies by running the following command:
@@ -46,10 +59,18 @@ Major, minor, and patch versions are supported only until the latest version is 
    sudo -u postgres psql
    ```
 
-2. Create the database by running the following command:
+2. Create the database.
+
+   If you're using Claude, run the following command:
 
    ```sql
-   CREATE DATABASE claugnal;
+   CREATE DATABASE aisora_claude;
+   ```
+
+   If you're using Llama, run the following command:
+
+   ```sql
+   CREATE DATABASE aisora_llama;
    ```
 
 3. Exit PostgreSQL by running the following command:
@@ -58,13 +79,21 @@ Major, minor, and patch versions are supported only until the latest version is 
    \q
    ```
 
-4. Create the query_log table by running the following command:
+4. Create the `query_log` table.
+
+   If you're using Claude, run the following command:
 
    ```shell
-   psql -U username -d claugnal -f setup_database.sql
+   psql -U username -d aisora_claude -f setup_database.sql
    ```
 
-## Configure Claugnal
+   If you're using Llama, run the following command:
+   
+   ```shell
+   psql -U username -d aisora_llama -f setup_database.sql
+   ```
+
+## Configure Aisora
 
 Open **config_TEMPLATE.py**, and edit the following configurations as described in the configuration file:
 
@@ -72,6 +101,7 @@ Open **config_TEMPLATE.py**, and edit the following configurations as described 
    - `DB_CONFIG`
    - `SIGNAL_NUMBER`
    - `SYSTEM_PROMPT`
+   - `windows_model_path` (for Llama models only)
    
    > [!IMPORTANT]
    >
@@ -80,18 +110,18 @@ Open **config_TEMPLATE.py**, and edit the following configurations as described 
    
    > [!NOTE]
    >
-   > The default Claude model that Claugnal uses **claude-3-5-haiku-20241022**. You can change to a different Claude model in the configuration file.
+   > The default Claude model is **claude-3-5-haiku-20241022**. You can change to a different Claude model in the configuration file.
    >
-   > In addition, you can set `max_tokens` and `temperature` to different values, according to your needs.
+   > When using Llama models, make sure that you've downloaded a Llama .gguf file from Hugging Face. You must then specify the path of that model in the configuration file.
 
-## Start Claugnal
+## Start Aisora
 
-Start Claugnal by running the following command:
+Start Aisora by running the following command:
    
    ```shell
-   python claugnal.py
+   python aisora.py
    ```
 
-## Stop Claugnal
+## Stop Aisora
 
-Stop Claugnal by pressing **Ctrl + C** to stop the script or close Terminal.
+Stop Aisora by pressing **Ctrl + C** to stop the script or close Terminal.

@@ -1,10 +1,10 @@
--- This script sets up the necessary PostgreSQL database and tables for the Claugnal.
+-- This script sets up the necessary PostgreSQL database and tables for Aisora.
 
 -- Create the database (run as postgres superuser)
--- CREATE DATABASE llagnal;
+-- CREATE DATABASE aisora_llama;
 
 -- Connect to the database before running the rest:
--- \c llagnal
+-- \c aisora_llama
 
 -- Create the query_log table.
 CREATE TABLE IF NOT EXISTS query_log (
