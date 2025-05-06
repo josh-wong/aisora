@@ -59,7 +59,7 @@ def get_location_from_phone_number(phone_number, force_refresh=False):
                     search_query = f"{region}, {country}"
                     
                     # Use the Nominatim geocoding service.
-                    geolocator = Nominatim(user_agent="claugnal")
+                    geolocator = Nominatim(user_agent="aisora_claude")
                     location = geolocator.geocode(search_query, exactly_one=True, timeout=10)
                     
                     if location:
@@ -109,7 +109,7 @@ def get_location_from_phone_number(phone_number, force_refresh=False):
                 # Method 3: If a city is still not found, try the region as a direct lookup.
                 # Ensure geolocator is initialized before use.
                 if 'geolocator' not in locals():
-                  geolocator = Nominatim(user_agent="claugnal")
+                  geolocator = Nominatim(user_agent="aisora_claude")
                 if not city and region:
                     region_location = geolocator.geocode(region, exactly_one=True, timeout=10)
                     if region_location:
