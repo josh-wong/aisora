@@ -8,10 +8,6 @@ Claugnal is a Claude-based AI assistant for Signal.
 - Message history within conversations
 - Logging of user data.
 
-> [!NOTE]
->
-> By default, Claugnal uses **claude-3-5-haiku-20241022**. To use a different Claude-based LLM, you must update the model in **chatbot.py**. 
-
 ## Maintenance support policy
 
 Major, minor, and patch versions are supported only until the latest version is released. For example, when version 0.2.0 is released, version 0.1.0 will no longer be supported. Then, if version 0.2.1 is released, version 0.2.0 will no longer be supported.
@@ -23,7 +19,6 @@ Major, minor, and patch versions are supported only until the latest version is 
 ## Prerequisites
 
 - Python 3.11 or later
-- PostgreSQL database
 - Signal Desktop application
 - Anthropic API key (for Claude access)
 
@@ -42,44 +37,24 @@ Major, minor, and patch versions are supported only until the latest version is 
    pip install -r requirements.txt
    ```
 
-## Create the PostgreSQL database
-
-1. Log in to your PostgreSQL instance as a PostgreSQL superuser by running the following command:
-
-   ```shell
-   sudo -u postgres psql
-   ```
-
-2. Create the database by running the following command:
-
-   ```sql
-   CREATE DATABASE claugnal;
-   ```
-
-3. Exit PostgreSQL by running the following command:
-
-   ```sql
-   \q
-   ```
-
-4. Create the query_log table by running the following command:
-
-   ```shell
-   psql -U username -d claugnal -f setup_database.sql
-   ```
-
 ## Configure Claugnal
 
 Open **config_TEMPLATE.py**, and edit the following configurations as described in the configuration file:
 
    - `ANTHROPIC_API_KEY`
-   - `DB_CONFIG`
    - `SIGNAL_NUMBER`
    - `SYSTEM_PROMPT`
    
    > [!IMPORTANT]
    >
    > Be sure to remove "_TEMPLATE" from the filename before using it.
+
+   
+   > [!NOTE]
+   >
+   > The default Claude model that Claugnal uses **claude-3-5-haiku-20241022**. You can change to a different Claude model in the configuration file.
+   >
+   > In addition, you can set `max_tokens` and `temperature` to different values, according to your needs.
 
 ## Start Claugnal
 
