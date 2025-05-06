@@ -8,7 +8,7 @@ import psutil
 import anthropic
 import uuid
 import re
-from config import ANTHROPIC_API_KEY, SIGNAL_NUMBER, SYSTEM_PROMPT, AI_ASSISTANT_NICKNAME
+from config import ANTHROPIC_API_KEY, SIGNAL_NUMBER, SYSTEM_PROMPT, AI_ASSISTANT_NICKNAME, MODEL_CONFIG
 from db_utils import log_conversation, get_recent_conversation_history
 from location_utils import get_location_from_phone_number, clear_location_cache
 
@@ -187,8 +187,9 @@ def ask_claude(question, conversation_id=None):
             messages = format_conversation_history(history) + messages
     
     response = claude.messages.create(
-        model="claude-3-5-haiku-20241022",
-        max_tokens=8192,
+        model=MODEL_CONFIG['model'],
+        max_tokens=MODEL_CONFIG['max_tokens'],
+        temperature=MODEL_CONFIG['temperature'],
         system=SYSTEM_PROMPT,
         messages=messages
     )
