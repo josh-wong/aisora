@@ -2,7 +2,7 @@
 # IMPORTANT: Be sure to remove "_TEMPLATE" from the filename before using it.
 
 # Your Claude API key
-ANTHROPIC_API_KEY = "<API_KEY>"
+ANTHROPIC_API_KEY = "<YOUR_API_KEY>"
 
 # Claude model configuration
 MODEL_CONFIG = {
@@ -24,7 +24,7 @@ DB_CONFIG = {
 SIGNAL_NUMBER = "+<PHONE_NUMBER>"
 
 # Bot name for mentions in group chats
-AI_ASSISTANT_NICKNAME = "Claugnal"
+AI_ASSISTANT_NICKNAME = "<NICKNAME>"
 
 # The system prompt for the AI assistant
 SYSTEM_PROMPT = """
