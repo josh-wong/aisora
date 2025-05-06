@@ -19,7 +19,6 @@ Major, minor, and patch versions are supported only until the latest version is 
 ## Prerequisites
 
 - Python 3.11 or later
-- PostgreSQL database
 - Signal Desktop application
 - Anthropic API key (for Claude access)
 
@@ -38,38 +37,11 @@ Major, minor, and patch versions are supported only until the latest version is 
    pip install -r requirements.txt
    ```
 
-## Create the PostgreSQL database
-
-1. Log in to your PostgreSQL instance as a PostgreSQL superuser by running the following command:
-
-   ```shell
-   sudo -u postgres psql
-   ```
-
-2. Create the database by running the following command:
-
-   ```sql
-   CREATE DATABASE claugnal;
-   ```
-
-3. Exit PostgreSQL by running the following command:
-
-   ```sql
-   \q
-   ```
-
-4. Create the query_log table by running the following command:
-
-   ```shell
-   psql -U username -d claugnal -f setup_database.sql
-   ```
-
 ## Configure Claugnal
 
 Open **config_TEMPLATE.py**, and edit the following configurations as described in the configuration file:
 
    - `ANTHROPIC_API_KEY`
-   - `DB_CONFIG`
    - `SIGNAL_NUMBER`
    - `SYSTEM_PROMPT`
    
