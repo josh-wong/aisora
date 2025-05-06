@@ -10,7 +10,9 @@ Claugnal is a Claude-based AI assistant for Signal.
 
 > [!NOTE]
 >
-> By default, Claugnal uses **claude-3-5-haiku-20241022**. To use a different Claude-based LLM, you must update the model in **chatbot.py**. 
+> The default Claude model that Claugnal uses **claude-3-5-haiku-20241022**. You can change to a different Claude model in the configuration file.
+>
+> In addition, you can set `max_tokens` and `temperature` to different values, according to your needs. 
 
 ## Maintenance support policy
 
