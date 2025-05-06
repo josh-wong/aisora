@@ -1,0 +1,7 @@
+flask
+geopy
+llama-cpp-python
+phonenumbers
+psutil
+psycopg2-binary
+requests
