@@ -18,7 +18,7 @@ Major, minor, and patch versions are supported only until the latest version is 
 
 > [!NOTE]
 >
-> Although this neither standard nor best practice as a support policy, this approach is mostly for ease of maintenance at this point.
+> Although this is neither standard nor best practice as a support policy, it has been adopted for ease of maintenance.
 
 ## Prerequisites
 
