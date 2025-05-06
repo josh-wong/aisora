@@ -8,7 +8,7 @@ import psutil
 import anthropic
 import uuid
 import re
-from config import ANTHROPIC_API_KEY, SIGNAL_NUMBER, SYSTEM_PROMPT, AI_ASSISTANT_NICKNAME
+from config import ANTHROPIC_API_KEY, SIGNAL_NUMBER, SYSTEM_PROMPT, AI_ASSISTANT_NICKNAME, MODEL_CONFIG
 from db_utils import log_conversation, get_recent_conversation_history
 from location_utils import get_location_from_phone_number, clear_location_cache
 
