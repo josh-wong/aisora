@@ -6,9 +6,9 @@ ANTHROPIC_API_KEY = "<YOUR_API_KEY>"
 
 # Claude model configuration
 MODEL_CONFIG = {
-    'model': 'claude-3-5-haiku-20241022',  # Model name (for example, 'claude-3-5-haiku-20241022', 'claude-3-7-sonnet-latest')
-    'max_tokens': 8192,                 # Maximum number of tokens in the response
-    'temperature': 0.7                  # Controls randomness (0.0-1.0)
+    'model': 'claude-3-5-haiku-20241022', # Model name (for example, 'claude-3-5-haiku-20241022', 'claude-3-7-sonnet-latest')
+    'max_tokens': 8192, # Maximum number of tokens in the response
+    'temperature': 0.7 # Controls randomness (0.0-1.0)
 }
 
 # Your PostgreSQL database configuration
