@@ -1,17 +1,17 @@
--- This script sets up the necessary PostgreSQL database and tables for the Claugnal.
+-- This script sets up the necessary PostgreSQL database and tables for Aisora.
 
 -- Create the database (run as postgres superuser)
--- CREATE DATABASE claugnal;
+-- CREATE DATABASE aisora_llama;
 
 -- Connect to the database before running the rest:
--- \c claugnal
+-- \c aisora_llama
 
 -- Create the query_log table.
 CREATE TABLE IF NOT EXISTS query_log (
     id SERIAL PRIMARY KEY,
     sender TEXT NOT NULL,              -- Phone number of the sender
     query TEXT NOT NULL,                      -- Message from the user
-    response TEXT NOT NULL,                   -- Claude's response
+    response TEXT NOT NULL,                   -- Llama's response
     conversation_id TEXT NOT NULL,     -- UUID for grouping conversations
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     is_group TEXT DEFAULT FALSE,           -- Whether the message was sent in a group

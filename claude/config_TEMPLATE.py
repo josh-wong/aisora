@@ -1,14 +1,14 @@
-# Configuration file for Claugnal, a Claude-based AI assistant for Signal. This file contains sensitive information. Do not share it with anyone.
+# Configuration file for Aisora, an AI assistant for Signal. This file contains sensitive information. Do not share it with anyone.
 # IMPORTANT: Be sure to remove "_TEMPLATE" from the filename before using it.
 
 # Your Claude API key
-ANTHROPIC_API_KEY = "<API_KEY>"
+ANTHROPIC_API_KEY = "<YOUR_API_KEY>"
 
 # Claude model configuration
 MODEL_CONFIG = {
-    'model': 'claude-3-5-haiku-20241022',  # Model name (for example, 'claude-3-5-haiku-20241022', 'claude-3-7-sonnet-latest')
-    'max_tokens': 8192,                 # Maximum number of tokens in the response
-    'temperature': 0.7                  # Controls randomness (0.0-1.0)
+    'model': 'claude-3-5-haiku-20241022', # Model name (for example, 'claude-3-5-haiku-20241022', 'claude-3-7-sonnet-latest')
+    'max_tokens': 8192, # Maximum number of tokens in the response
+    'temperature': 0.7 # Controls randomness (0.0-1.0)
 }
 
 # Your PostgreSQL database configuration
@@ -24,7 +24,7 @@ DB_CONFIG = {
 SIGNAL_NUMBER = "+<PHONE_NUMBER>"
 
 # Bot name for mentions in group chats
-AI_ASSISTANT_NICKNAME = "Claugnal"
+AI_ASSISTANT_NICKNAME = "<NICKNAME>"
 
 # The system prompt for the AI assistant
 SYSTEM_PROMPT = """
