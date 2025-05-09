@@ -16,13 +16,43 @@ from location_utils import get_location_from_phone_number, clear_location_cache
 # Set an environment variable to enable IP-based location fallback.
 os.environ['ALLOW_IP_FALLBACK'] = 'true'
 
+# Add environment variables to force GPU usage with llama-cpp-python
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'  # Use first GPU
+os.environ['LLAMA_CUBLAS'] = '1'  # Force CUDA
+
 llama_model = None
+
+def check_gpu_status():
+    """Check if GPU is available for llama-cpp-python"""
+    try:
+        from llama_cpp import llama_cpp
+        gpu_available = llama_cpp.llama_supports_gpu_offload()
+        
+        print(f"GPU offload support in llama-cpp: {gpu_available}")
+        
+        # Try to get CUDA device info
+        try:
+            import subprocess
+            nvidia_info = subprocess.check_output(['nvidia-smi'], universal_newlines=True)
+            print(f"GPU information:\n{nvidia_info}")
+        except:
+            print("nvidia-smi not available")
+            
+        return gpu_available
+    except Exception as e:
+        print(f"Error checking GPU status: {e}")
+        return False
 
 # Initialize the Llama model.
 if USE_LLAMA:
     try:
         print(f"Loading Llama model from {LLAMA_MODEL_PATH}")
         print(f"Using GPU configuration: {MODEL_CONFIG}")
+        
+        # Check if GPU is available
+        has_gpu = check_gpu_status()
+        if not has_gpu:
+            print("WARNING: GPU support may not be available. Make sure you installed llama-cpp-python with GPU support.")
         
         # Extract the GPU-specific settings from MODEL_CONFIG.
         gpu_params = {
@@ -31,15 +61,28 @@ if USE_LLAMA:
             'n_gpu_layers': MODEL_CONFIG.get('n_gpu_layers', MODEL_CONFIG.get('gpu_layers', -1)),
             'offload_kqv': MODEL_CONFIG.get('offload_kqv', True),
             'main_gpu': MODEL_CONFIG.get('main_gpu', 0),
-            'tensor_split': MODEL_CONFIG.get('tensor_split', None),
             'verbose': True # Enable verbose mode to see GPU usage info.
         }
+        
+        # Remove tensor_split if it's None to avoid issues
+        tensor_split = MODEL_CONFIG.get('tensor_split', None)
+        if tensor_split is not None:
+            gpu_params['tensor_split'] = tensor_split
+            
+        print(f"GPU parameters used: {gpu_params}")
         
         llama_model = Llama(
             model_path=LLAMA_MODEL_PATH,
             **gpu_params
         )
-        print("Llama model loaded successfully with GPU acceleration!")
+        
+        # Verify if GPU is being used
+        if hasattr(llama_model, 'model') and hasattr(llama_model.model, 'params'):
+            print(f"Model loaded. n_gpu_layers set to: {llama_model.model.params.n_gpu_layers}")
+        else:
+            print("Model loaded, but couldn't verify GPU layers parameter")
+            
+        print("Llama model loaded successfully!")
     except Exception as e:
         print(f"Error loading Llama model: {e}")
         print(traceback.format_exc())
