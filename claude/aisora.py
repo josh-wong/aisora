@@ -11,6 +11,7 @@ import re
 from config import ANTHROPIC_API_KEY, SIGNAL_NUMBER, SYSTEM_PROMPT, AI_ASSISTANT_NICKNAME, MODEL_CONFIG
 from db_utils import log_conversation, get_recent_conversation_history
 from location_utils import get_location_from_phone_number, clear_location_cache
+from attachment_helper import get_attachment, process_image_file, extract_attachment_id_from_signal_response
 
 # Set an environment variable to enable IP-based location fallback.
 os.environ['ALLOW_IP_FALLBACK'] = 'true'
@@ -120,7 +121,7 @@ def split_message(message, max_length=500):
     paragraphs = message.split('\n\n')
     
     for paragraph in paragraphs:
-        # If adding this paragraph exceeds max length and we already have content, then break it onto a new paragraph.
+        # If adding this paragraph exceeds max length and there's already content, then break it onto a new paragraph.
         if current_part and len(current_part) + len(paragraph) + 2 > max_length:
             parts.append(current_part)
             current_part = paragraph
@@ -178,6 +179,68 @@ def format_conversation_history(history):
         ])
     return formatted
 
+def ask_claude_with_images(question, images=None, conversation_id=None):
+    """Send a message to Claude with optional images"""
+    print(f"Sending question with images to Claude: {question[:50]}...")
+    
+    # Start building the message content
+    message_content = []
+    
+    # Add any images first if provided
+    if images and isinstance(images, list):
+        for image_data in images:
+            if image_data:  # Only add valid image data
+                message_content.append(image_data)
+                print("Added image to message content")
+    
+    # For short questions with images, enhance the prompt
+    original_question = question
+    if images and len(question.strip()) < 15:
+        question = f"I'm showing you an image and asking: '{question}'. Please analyze what you see in the image and respond accordingly."
+        print(f"Enhanced short question prompt: {question}")
+    
+    # Ensure there's text content, even if empty
+    if not question or not question.strip():
+        question = "Please describe this image in detail."
+        print("Using default prompt for empty text message")
+    
+    # Add the text content.
+    message_content.append({"type": "text", "text": question})
+    
+    messages = [{"role": "user", "content": message_content}]
+    
+    if conversation_id:
+        history = get_recent_conversation_history(conversation_id)
+        if history:
+            # Filter out any empty history entries
+            valid_history = []
+            for entry in history:
+                if entry['query'] and entry['response']:  # Make sure both query and response exist
+                    valid_history.append(entry)
+            
+            # For previous messages, only include the text, not images.
+            if valid_history:
+                formatted_history = format_conversation_history(valid_history)
+                messages = formatted_history + messages
+    
+    try:
+        print(f"Calling Claude API with {len(images) if images else 0} images")
+        print(f"Using model: {MODEL_CONFIG['model']}") # Add logging to show which model is used.
+        response = claude.messages.create(
+            model=MODEL_CONFIG['model'],
+            max_tokens=MODEL_CONFIG['max_tokens'],
+            temperature=MODEL_CONFIG['temperature'],
+            system=SYSTEM_PROMPT,
+            messages=messages
+        )
+        print("Successfully received Claude's response")
+        return format_response(response.content[0].text)
+    except Exception as e:
+        print(f"Error in Claude API call: {e}")
+        import traceback
+        traceback.print_exc()
+        raise e
+
 def ask_claude(question, conversation_id=None):
     messages = [{"role": "user", "content": question}]
     
@@ -196,6 +259,9 @@ def ask_claude(question, conversation_id=None):
     return format_response(response.content[0].text)
 
 def listen_for_messages(proc):
+    # Keep track of already processed messages to avoid duplicates.
+    processed_messages = set()
+    
     while True:
         line = proc.stdout.readline()
         if not line:
@@ -210,14 +276,36 @@ def listen_for_messages(proc):
             params = data.get("params", {})
             envelope = params.get("envelope", {})
             source = envelope.get("source")
+            timestamp = envelope.get("timestamp", "")
+            
+            # Create a unique key for this message to prevent duplication.
+            message_data = envelope.get("dataMessage", {})
+            message_text = message_data.get("message")
+            
+            # Fix: Handle None message_text safely
+            safe_message = "" if message_text is None else message_text
+            message_key = f"{source}:{timestamp}:{safe_message[:50]}"
+            
+            # Skip if the message has already been processed.
+            if message_key in processed_messages:
+                print(f"Skipping already processed message: {message_key}")
+                continue
+            
+            # Add to processed messages.
+            processed_messages.add(message_key)
+            
+            # Limit the size of processed_messages to prevent memory issues.
+            if len(processed_messages) > 1000:
+                processed_messages = set(list(processed_messages)[-500:])
             
             # Extract the sender's name if available.
             sender_name = None
             if "sourceName" in envelope:
                 sender_name = envelope.get("sourceName")
             
-            message_data = envelope.get("dataMessage", {})
-            message_text = message_data.get("message")
+            # Check for attachments.
+            attachments = message_data.get("attachments", [])
+            attachment_ids = [att.get("id") for att in attachments if att.get("contentType", "").startswith("image/")]
             
             # Check if the message is in a group chat.
             is_group = False
@@ -235,61 +323,9 @@ def listen_for_messages(proc):
                     print(f"Bot was officially mentioned in metadata: {mention}")
                     break
             
-            if source and message_text:
-                yield source, message_text, is_group, group_id, is_mentioned, sender_name
-
-def check_for_mention(message):
-    """Check if the assistant was mentioned in the message"""
-    # Print debug information to help diagnose the issue.
-    print(f"Checking for mention in message: {message}")
-    print(f"Raw message bytes: {repr(message.encode())}")
-    print(f"Looking for mentions of nickname: {AI_ASSISTANT_NICKNAME}")
-    
-    # Look for various encodings of the @ symbol that Signal might use.
-    replacements = {
-        '￼': '@',
-        '\ufffc': '@', # Another possible replacement character
-        '\xef\xbf\xbc': '@', # UTF-8 bytes for the object replacement character
-        '\uFEFF': '@', # Zero-width, no-break space
-        '﹫': '@', # Alternative @ symbol (U+FE6B)
-    }
-    
-    processed_message = message
-    for char, replacement in replacements.items():
-        processed_message = processed_message.replace(char, replacement)
-    
-    print(f"Processed message after replacement: {processed_message}")
-    
-    # Create patterns to match potential @mentions with the AI's nickname.
-    # Escape potential regex special characters in the name.
-    nickname = re.escape(AI_ASSISTANT_NICKNAME)
-    
-    # Define multiple patterns to catch different ways the assistant might be mentioned
-    patterns = [
-        rf'@{nickname}',                      # @Nickname
-        rf'@\s*{nickname}',                   # @ Nickname (with space)
-        # rf'{nickname}',                       # Just the nickname (might have false positives, so this is currently disabled)
-    ]
-    
-    # Check each pattern.
-    for pattern in patterns:
-        match = re.search(pattern, processed_message, re.IGNORECASE)
-        if match:
-            print(f"Found mention match with pattern: {pattern}")
-            print(f"Match object: {match.group(0)}")
-            return True
-            
-    # Try again with the raw message as a fallback.
-    for pattern in patterns:
-        match = re.search(pattern, message, re.IGNORECASE)
-        if match:
-            print(f"Found mention match in raw message with pattern: {pattern}")
-            print(f"Match object: {match.group(0)}")
-            return True
-    
-    # If no patterns matched, print the following message.
-    print("No mention patterns matched")
-    return False
+            # Update condition to handle messages with no text but with attachments
+            if source and (attachment_ids or (message_text is not None and message_text.strip())):
+                yield source, "" if message_text is None else message_text, is_group, group_id, is_mentioned, sender_name, attachment_ids
 
 def remove_mention(message):
     """Remove the mention from the message to avoid confusing the AI"""
@@ -322,6 +358,44 @@ def remove_mention(message):
     
     return result
 
+def check_for_mention(message):
+    """Check if the message contains a mention of the AI assistant"""
+    if message is None:
+        return False
+        
+    nickname = re.escape(AI_ASSISTANT_NICKNAME)
+    
+    # Look for various encodings of the @ symbol that Signal might use
+    replacements = {
+        '￼': '@',
+        '\ufffc': '@',
+        '\xef\xbf\xbc': '@',
+        '\uFEFF': '@',
+        '﹫': '@',
+    }
+    
+    processed_message = message
+    for char, replacement in replacements.items():
+        processed_message = processed_message.replace(char, replacement)
+    
+    # Check for direct mentions with @ symbol
+    patterns = [
+        rf'@{nickname}',
+        rf'@\s*{nickname}',
+    ]
+    
+    for pattern in patterns:
+        if re.search(pattern, processed_message, re.IGNORECASE):
+            print(f"Found mention using pattern: {pattern}")
+            return True
+    
+    # Also check if the message starts with just the name without @ symbol
+    if re.match(rf'^{nickname}[\s:,]', processed_message, re.IGNORECASE):
+        print(f"Found mention at start of message: {processed_message[:20]}...")
+        return True
+    
+    return False
+
 def format_mentions_for_db(message):
     """Format message to replace replacement characters with proper @ symbol for database storage"""
     # Look for various encodings of the @ symbol that Signal might use.
@@ -353,8 +427,10 @@ def main():
     proc = start_signal_cli_jsonrpc()
     print("Listening for incoming messages...")
 
-    # Store conversation IDs.
+    # Store conversation IDs and processed messages
     conversations = {}
+    last_processed_timestamp = {}
+    
     last_cache_clear = time.time()
     cache_clear_interval = 3600  # Clear location cache every hour.
 
@@ -372,7 +448,22 @@ def main():
             print("Location cache cleared due to scheduled refresh")
 
         try:
-            for sender, message, is_group, group_id, is_mentioned, sender_name in listen_for_messages(proc):
+            for sender, message, is_group, group_id, is_mentioned, sender_name, attachment_ids in listen_for_messages(proc):
+                # Create a unique key for this conversation.
+                convo_key = group_id if is_group and group_id else sender
+                
+                # Check if this is a new message (by using timestamp tracking).
+                message_timestamp = time.time()
+                
+                # Skip if a message from this sender has already been processed very recently.
+                # This prevents the loop from occurring if there are parsing issues.
+                if convo_key in last_processed_timestamp and message_timestamp - last_processed_timestamp[convo_key] < 2:
+                    print(f"Skipping too-frequent message from {sender} to prevent looping")
+                    continue
+                
+                # Update the last processed timestamp
+                last_processed_timestamp[convo_key] = message_timestamp
+                
                 print(f"Received from {sender}: {message}")
                 
                 # Try to extract location from phone number if it starts with a +.
@@ -393,15 +484,47 @@ def main():
                 
                 if should_respond:
                     # Create or get conversation ID for this sender or group.
-                    convo_key = group_id if is_group and group_id else sender
                     if convo_key not in conversations:
                         conversations[convo_key] = str(uuid.uuid4())
 
                     # Remove the mention from the message if it's a group message.
                     processed_message = remove_mention(message) if is_group else message
                     
+                    # Process attachments if any.
+                    images = []
+                    attachment_error = False
+                    
+                    for attachment_id in attachment_ids:
+                        try:
+                            attachment_path = get_attachment(attachment_id, proc)
+                            if attachment_path:
+                                image_data = process_image_file(attachment_path)
+                                if image_data:
+                                    images.append(image_data)
+                                    print(f"Successfully processed image attachment")
+                                else:
+                                    print(f"Failed to process image from {attachment_path}")
+                                    attachment_error = True
+                            else:
+                                print(f"Failed to download attachment ID: {attachment_id}")
+                                attachment_error = True
+                        except Exception as img_err:
+                            print(f"Error handling attachment: {img_err}")
+                            attachment_error = True
+                    
+                    # Verify if the message has content (text or images).
+                    has_content = processed_message.strip() or (images and len(images) > 0)
+                    if not has_content:
+                        print("No valid content in message, skipping response")
+                        continue
+                    
                     try:
-                        answer = ask_claude(processed_message, conversations[convo_key])
+                        if images:
+                            print(f"Sending message with {len(images)} images to Claude")
+                            answer = ask_claude_with_images(processed_message, images, conversations[convo_key])
+                        else:
+                            answer = ask_claude(processed_message, conversations[convo_key])
+                        
                         print(f"Claude's answer: {answer}")
                         
                         # Log the conversation with all location data available.
@@ -439,6 +562,8 @@ def main():
                                 time.sleep(2)
                     except Exception as e:
                         print(f"Error getting Claude's response: {e}")
+                        import traceback
+                        traceback.print_exc()
                         answer = "Sorry, there was an error processing your request."
                         if is_group and group_id:
                             send_signal_message(sender, answer, proc, group_id)
@@ -450,6 +575,8 @@ def main():
 
         except Exception as e:
             print(f"Main loop error: {e}")
+            import traceback
+            traceback.print_exc()
             time.sleep(5)
             kill_existing_signal_cli()
             proc = start_signal_cli_jsonrpc()
