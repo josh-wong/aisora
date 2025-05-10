@@ -492,12 +492,14 @@ def main():
                     
                     # Process attachments if any.
                     images = []
+                    attachment_paths = []
                     attachment_error = False
                     
                     for attachment_id in attachment_ids:
                         try:
                             attachment_path = get_attachment(attachment_id, proc)
                             if attachment_path:
+                                attachment_paths.append(attachment_path)
                                 image_data = process_image_file(attachment_path)
                                 if image_data:
                                     images.append(image_data)
@@ -540,7 +542,8 @@ def main():
                             country,
                             city,
                             possible_carrier,
-                            location
+                            location,
+                            attachment_paths # Save attachment paths to the database.
                         )
                         
                         max_retries = 3
