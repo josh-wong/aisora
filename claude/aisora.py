@@ -183,23 +183,23 @@ def ask_claude_with_images(question, images=None, conversation_id=None):
     """Send a message to Claude with optional images"""
     print(f"Sending question with images to Claude: {question[:50]}...")
     
-    # Start building the message content
+    # Start building the message content.
     message_content = []
     
-    # Add any images first if provided
+    # Add any images first if provided.
     if images and isinstance(images, list):
         for image_data in images:
-            if image_data:  # Only add valid image data
+            if image_data: # Only add valid image data.
                 message_content.append(image_data)
                 print("Added image to message content")
     
-    # For short questions with images, enhance the prompt
+    # For short questions with images, enhance the prompt.
     original_question = question
     if images and len(question.strip()) < 15:
         question = f"I'm showing you an image and asking: '{question}'. Please analyze what you see in the image and respond accordingly."
         print(f"Enhanced short question prompt: {question}")
     
-    # Ensure there's text content, even if empty
+    # Ensure there's text content, even if empty.
     if not question or not question.strip():
         question = "Please describe this image in detail."
         print("Using default prompt for empty text message")
@@ -212,10 +212,10 @@ def ask_claude_with_images(question, images=None, conversation_id=None):
     if conversation_id:
         history = get_recent_conversation_history(conversation_id)
         if history:
-            # Filter out any empty history entries
+            # Filter out any empty history entries.
             valid_history = []
             for entry in history:
-                if entry['query'] and entry['response']:  # Make sure both query and response exist
+                if entry['query'] and entry['response']: # Make sure both query and response exist.
                     valid_history.append(entry)
             
             # For previous messages, only include the text, not images.
@@ -323,7 +323,7 @@ def listen_for_messages(proc):
                     print(f"Bot was officially mentioned in metadata: {mention}")
                     break
             
-            # Update condition to handle messages with no text but with attachments
+            # Update condition to handle messages with no text but with attachments.
             if source and (attachment_ids or (message_text is not None and message_text.strip())):
                 yield source, "" if message_text is None else message_text, is_group, group_id, is_mentioned, sender_name, attachment_ids
 
@@ -365,7 +365,7 @@ def check_for_mention(message):
         
     nickname = re.escape(AI_ASSISTANT_NICKNAME)
     
-    # Look for various encodings of the @ symbol that Signal might use
+    # Look for various encodings of the @ symbol that Signal might use.
     replacements = {
         '￼': '@',
         '\ufffc': '@',
@@ -378,7 +378,7 @@ def check_for_mention(message):
     for char, replacement in replacements.items():
         processed_message = processed_message.replace(char, replacement)
     
-    # Check for direct mentions with @ symbol
+    # Check for direct mentions with @ symbol.
     patterns = [
         rf'@{nickname}',
         rf'@\s*{nickname}',
@@ -389,7 +389,7 @@ def check_for_mention(message):
             print(f"Found mention using pattern: {pattern}")
             return True
     
-    # Also check if the message starts with just the name without @ symbol
+    # Also check if the message starts with just the name without @ symbol.
     if re.match(rf'^{nickname}[\s:,]', processed_message, re.IGNORECASE):
         print(f"Found mention at start of message: {processed_message[:20]}...")
         return True
@@ -427,7 +427,7 @@ def main():
     proc = start_signal_cli_jsonrpc()
     print("Listening for incoming messages...")
 
-    # Store conversation IDs and processed messages
+    # Store conversation IDs and processed messages.
     conversations = {}
     last_processed_timestamp = {}
     
