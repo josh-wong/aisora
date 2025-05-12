@@ -433,16 +433,16 @@ def main():
                 print(f"Received from {sender}: {message}")
                 
                 # Try to extract location from phone number if it starts with a +.
-                country = city = possible_carrier = location = None
+                country = city = possible_isp = location = None
                 if sender and isinstance(sender, str) and sender.startswith('+'):
                     # Force a refresh on each message to ensure that the latest data is available.
                     location_info = get_location_from_phone_number(sender, force_refresh=True)
                     if location_info:
                         country = location_info.get('country')
                         city = location_info.get('city')
-                        possible_carrier = location_info.get('possible_carrier')
+                        possible_isp = location_info.get('possible_isp')
                         location = location_info.get('location')
-                        print(f"Extracted location from phone number: {country}, {city}, {possible_carrier}, {location}")
+                        print(f"Extracted location from phone number: {country}, {city}, {possible_isp}, {location}")
                 
                 # Only respond if it's a direct message OR if it's a group message that mentions the assistant.
                 # First check official mentions from the metadata, then fall back to text-based detection.
@@ -477,7 +477,7 @@ def main():
                             sender_name,
                             country,
                             city,
-                            possible_carrier,
+                            possible_isp,
                             location
                         )
                         

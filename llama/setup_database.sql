@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS query_log (
     sender_name TEXT,                 -- Name of the sender if available
     country TEXT,                     -- Country based on phone number
     city TEXT,                        -- City based on phone number
-    possible_carrier TEXT,            -- Possible carrier based on phone number
+    possible_isp TEXT,            -- Possible ISP based on phone number
     location TEXT                     -- General location information
 );
 

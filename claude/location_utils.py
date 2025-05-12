@@ -16,7 +16,7 @@ def clear_location_cache():
 def get_location_from_phone_number(phone_number, force_refresh=False):
     """
     Extract location information from a phone number.
-    Returns a dictionary with country, city, possible carrier, and location coordinates if available.
+    Returns a dictionary with country, city, possible ISP, and location coordinates if available.
     
     Args:
         phone_number (str): The phone number in international format
@@ -153,7 +153,7 @@ def get_location_from_phone_number(phone_number, force_refresh=False):
         location_info = {
             "country": country if country else None,
             "city": city if city and city != country else None,
-            "possible_carrier": phone_carrier if phone_carrier else None,
+            "possible_isp": phone_carrier if phone_carrier else None,
             "location": location_string
         }
         
