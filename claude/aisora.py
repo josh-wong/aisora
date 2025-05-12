@@ -9,7 +9,8 @@ import anthropic
 import uuid
 import re
 from config import ANTHROPIC_API_KEY, SIGNAL_NUMBER, SYSTEM_PROMPT, AI_ASSISTANT_NICKNAME, MODEL_CONFIG
-from db_utils import log_conversation, get_recent_conversation_history
+from db_utils import log_conversation, get_recent_conversation_history, get_db_connection
+from psycopg2.extras import RealDictCursor
 from location_utils import get_location_from_phone_number, clear_location_cache
 from attachment_helper import get_attachment, process_image_file, extract_attachment_id_from_signal_response
 
@@ -179,8 +180,31 @@ def format_conversation_history(history):
         ])
     return formatted
 
+def get_recent_attachment_paths(conversation_id, limit=1):
+    """Get the most recent attachment paths from the conversation history."""
+    with get_db_connection() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                SELECT attachment_paths 
+                FROM query_log 
+                WHERE conversation_id = %s AND attachment_paths IS NOT NULL
+                ORDER BY timestamp DESC 
+                LIMIT %s
+            """, (conversation_id, limit))
+            results = cur.fetchall()
+            
+            # Extract and flatten attachments from results.
+            attachment_paths = []
+            for result in results:
+                if result['attachment_paths']:
+                    paths = json.loads(result['attachment_paths'])
+                    if isinstance(paths, list):
+                        attachment_paths.extend(paths)
+            
+            return attachment_paths
+
 def ask_claude_with_images(question, images=None, conversation_id=None):
-    """Send a message to Claude with optional images"""
+    """Send a message to Claude with optional images."""
     print(f"Sending question with images to Claude: {question[:50]}...")
     
     # Start building the message content.
@@ -191,17 +215,24 @@ def ask_claude_with_images(question, images=None, conversation_id=None):
         for image_data in images:
             if image_data: # Only add valid image data.
                 message_content.append(image_data)
-                print("Added image to message content")
+                print("Added image to message content.")
+    
+    # Check if this is a follow-up query with images from the conversation history.
+    is_followup = conversation_id and question.strip() and images 
     
     # For short questions with images, enhance the prompt.
     original_question = question
-    if images and len(question.strip()) < 15:
+    if is_followup:
+        # For follow-up queries, focus on answering just the question.
+        question = f"{question} Please focus only on answering this specific question about the image without describing the image again."
+        print(f"Using focused follow-up prompt: {question}")
+    elif images and len(question.strip()) < 15 and question.strip():
         question = f"I'm showing you an image and asking: '{question}'. Please analyze what you see in the image and respond accordingly."
         print(f"Enhanced short question prompt: {question}")
     
     # Ensure there's text content, even if empty.
     if not question or not question.strip():
-        question = "Please describe this image in detail."
+        question = "Please describe this image in detail. Respond directly with your analysis without mentioning that I didn't ask a question."
         print("Using default prompt for empty text message")
     
     # Add the text content.
@@ -241,13 +272,121 @@ def ask_claude_with_images(question, images=None, conversation_id=None):
         traceback.print_exc()
         raise e
 
-def ask_claude(question, conversation_id=None):
+def ask_claude(question, conversation_id=None): # Check if any recent images need to be included.
+    previous_images = []
+    if conversation_id:
+        # Get the paths to recent attachments.
+        recent_attachment_paths = get_recent_attachment_paths(conversation_id, limit=1)
+        
+        # Process any images found.
+        for attachment_path in recent_attachment_paths:
+            if os.path.exists(attachment_path):
+                # Check if the question is likely about a completely different topic.
+                # List of words/phrases that typically indicate a new topic unrelated to an image.
+                new_topic_indicators = [
+                  # Question starters
+                  'what is', 'what are', 'what was', 'what were', 'what does', 'what did',
+                  'how do', 'how does', 'how can', 'how could', 'how should', 'how would',
+                  'who is', 'who was', 'who are', 'who were',
+                  'when is', 'when was', 'when are', 'when will',
+                  'where is', 'where are', 'where can',
+                  'why is', 'why are', 'why does', 'why did',
+                  'can you', 'could you',
+                  
+                  # Information requests
+                  'explain', 'tell me about', 'define', 'describe', 'elaborate on',
+                  'history of', 'meaning of', 'purpose of', 'origin of', 'background of',
+                  'details about', 'information on', 'overview of', 'summary of',
+                  'facts about', 'statistics on', 'data about',
+                  
+                  # Comparison phrases
+                  'versus', 'vs.', 'vs', 'compared to', 'difference between', 'similarities between',
+                  'better than', 'worse than', 'pros and cons',
+                  
+                  # Common topics unrelated to images
+                  'weather', 'news', 'latest', 'current', 'recent', 'trending',
+                  'recipe', 'recipes', 'how to make', 'how to cook',
+                  'stock', 'stocks', 'price', 'prices', 'cost', 'value',
+                  'capital of', 'population of', 'located in', 'distance between',
+                  
+                  # Time-related shifts
+                  'today', 'yesterday', 'tomorrow', 'this week', 'last week', 'next week',
+                  'schedule', 'time', 'date', 'upcoming', 'event',
+                  
+                  # Media and entertainment
+                  'movie', 'film', 'show', 'series', 'episode', 'book', 'song', 'album', 'artist',
+                  'review', 'rating', 'cast', 'plot', 'release date',
+                  
+                  # Product/service inquiries
+                  'how much is', 'how much does', 'price of', 'cost of', 'where to buy',
+                  'best', 'recommended', 'top', 'review of', 'features of',
+                  
+                  # Academic/work
+                  'homework', 'assignment', 'project', 'thesis', 'paper', 'research',
+                  'formula for', 'equation', 'calculate', 'solve',
+                  
+                  # Technology
+                  'how to install', 'how to set up', 'how to configure', 'how to use',
+                  'download', 'update', 'upgrade', 'fix', 'troubleshoot',
+                  
+                  # Health
+                  'symptoms of', 'treatment for', 'cure for', 'causes of', 'prevention of',
+                  'diagnosis', 'diet', 'exercise', 'nutrition',
+                  
+                  # Travel
+                  'flights to', 'hotels in', 'visit', 'vacation', 'travel to', 'tourism',
+                  
+                  # Direct commands/requests
+                  'write', 'create', 'generate', 'draft', 'compose', 'make',
+                  'help me with', 'assist me', 'guide me', 'advice on',
+                  'translate', 'convert', 'change'
+              ]
+                
+                # Check if the question seems like a general knowledge query.
+                question_lower = question.lower()
+                is_general_knowledge = any(indicator in question_lower for indicator in new_topic_indicators)
+                
+                # Skip image inclusion for questions that are likely about general knowledge.
+                if is_general_knowledge:
+                    print(f"Question appears to be about general knowledge, skipping image inclusion")
+                else:
+                    image_data = process_image_file(attachment_path)
+                    if image_data:
+                        previous_images.append(image_data)
+                        print(f"Including previous image from: {attachment_path} for context")
+    
+    # If there are any previous images, use the ask_claude_with_images function.
+    if previous_images:
+        return ask_claude_with_images(question, previous_images, conversation_id)
+    
+    # Otherwise, proceed with a text-only query.
+    # Ensure the question is not empty.
+    if not question.strip():
+        question = "Hello" # Default message, if empty.
+        print("Warning: Empty question detected. Using the default greeting.")
+    
     messages = [{"role": "user", "content": question}]
     
     if conversation_id:
         history = get_recent_conversation_history(conversation_id)
         if history:
-            messages = format_conversation_history(history) + messages
+            valid_history = []
+            for entry in history:
+                # Validate that both the query and the response exist and are not empty.
+                if entry.get('query') and entry.get('query').strip() and entry.get('response') and entry.get('response').strip():
+                    valid_history.append(entry)
+            
+            if valid_history:
+                formatted_history = format_conversation_history(valid_history)
+                messages = formatted_history + messages
+    
+    # Final validation - Ensure that no message has empty content.
+    messages = [msg for msg in messages if msg.get('content')]
+    
+    # Ensure that there is at least one message.
+    if not messages:
+        messages = [{"role": "user", "content": "Hello"}]
+        print("Warning: No valid messages found. Using the default greeting.")
     
     response = claude.messages.create(
         model=MODEL_CONFIG['model'],
@@ -282,7 +421,7 @@ def listen_for_messages(proc):
             message_data = envelope.get("dataMessage", {})
             message_text = message_data.get("message")
             
-            # Fix: Handle None message_text safely
+            # Fix: Handle None message_text safely.
             safe_message = "" if message_text is None else message_text
             message_key = f"{source}:{timestamp}:{safe_message[:50]}"
             
