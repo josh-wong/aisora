@@ -14,6 +14,9 @@ from psycopg2.extras import RealDictCursor
 from location_utils import get_location_from_phone_number, clear_location_cache
 from attachment_helper import get_attachment, process_image_file, extract_attachment_id_from_signal_response
 
+# Create a specialized system prompt for image descriptions.
+IMAGE_SYSTEM_PROMPT = SYSTEM_PROMPT + "\nWhen shown an image without a specific question, always describe the image in detail without asking for clarification. Never ask what the user wants to know about the image - just provide a comprehensive description. Note that only one image will be processed at a time (the most recently sent one). IMPORTANT: Do not under any circumstances ask for clarification or ask what specific information the user wants about the image. Your task is to directly describe what you see in the image in detail, without waiting for further instructions. DO NOT end your response with questions like 'What would you like to know about this image?' or 'Is there something specific you want to know?' - simply provide the complete visual description. This is a critical requirement."
+
 # Set an environment variable to enable IP-based location fallback.
 os.environ['ALLOW_IP_FALLBACK'] = 'true'
 
@@ -204,8 +207,8 @@ def get_recent_attachment_paths(conversation_id, limit=1):
             return attachment_paths
 
 def ask_claude_with_images(question, images=None, conversation_id=None):
-    """Send a message to Claude with optional images."""
-    print(f"Sending question with images to Claude: {question[:50]}...")
+    """Send a message to Claude with optional image."""
+    print(f"Sending question with image to Claude: {question[:50]}...")
     
     # Start building the message content.
     message_content = []
@@ -218,24 +221,22 @@ def ask_claude_with_images(question, images=None, conversation_id=None):
                 print("Added image to message content.")
     
     # Check if this is a follow-up query with images from the conversation history.
-    is_followup = conversation_id and question.strip() and images 
-    
-    # For short questions with images, enhance the prompt.
+    is_followup = conversation_id and question.strip() and images    # For short questions with images, enhance the prompt.
     original_question = question
     if is_followup:
         # For follow-up queries, focus on answering just the question.
         question = f"{question} Please focus only on answering this specific question about the image without describing the image again."
         print(f"Using focused follow-up prompt: {question}")
     elif images and len(question.strip()) < 15 and question.strip():
+        # For short questions, add context that we're analyzing an image
         question = f"I'm showing you an image and asking: '{question}'. Please analyze what you see in the image and respond accordingly."
         print(f"Enhanced short question prompt: {question}")
     
     # Ensure there's text content, even if empty.
     if not question or not question.strip():
-        question = "Please describe this image in detail. Respond directly with your analysis without mentioning that I didn't ask a question."
-        print("Using default prompt for empty text message")
-    
-    # Add the text content.
+        question = "IMPORTANT: You are being shown an image without any specific question. Your task is to describe this image in detail without asking for clarification. Do not ask what the user wants to know about the image. Just provide a detailed description directly. DO NOT end your response with a question about what specific information is desired - the task is simply to provide a complete visual description. This is critical."
+        print("Using enhanced descriptive prompt for empty text message")
+        
     message_content.append({"type": "text", "text": question})
     
     messages = [{"role": "user", "content": message_content}]
@@ -255,13 +256,18 @@ def ask_claude_with_images(question, images=None, conversation_id=None):
                 messages = formatted_history + messages
     
     try:
-        print(f"Calling Claude API with {len(images) if images else 0} images")
-        print(f"Using model: {MODEL_CONFIG['model']}") # Add logging to show which model is used.
+        print(f"Calling the Claude API with {len(images) if images else 0} image")
+        print(f"Assigned model: {MODEL_CONFIG['model']}") # Add logging to show which model is used.
+        
+        # Use the specialized image system prompt when there is no question
+        current_system_prompt = IMAGE_SYSTEM_PROMPT if not original_question.strip() else SYSTEM_PROMPT
+        print(f"Using {'specialized image' if not original_question.strip() else 'standard'} system prompt")
+        
         response = claude.messages.create(
             model=MODEL_CONFIG['model'],
             max_tokens=MODEL_CONFIG['max_tokens'],
             temperature=MODEL_CONFIG['temperature'],
-            system=SYSTEM_PROMPT,
+            system=current_system_prompt,
             messages=messages
         )
         print("Successfully received Claude's response")
@@ -629,10 +635,30 @@ def main():
                     # Remove the mention from the message if it's a group message.
                     processed_message = remove_mention(message) if is_group else message
                     
+                    # Check if this is a group message with only a mention and no other text.
+                    if is_group and not processed_message.strip() and message.strip():
+                        print("Group message contains only a mention with no actual text content.")
+                        # Set processed_message to empty to trigger the image description flow.
+                        processed_message = ""
+                    # Special case for group chats with images to trigger direct image description.
+                    if is_group and attachment_ids and (not processed_message.strip() or processed_message.strip() == ""):
+                        print("Group message with images and no text content. Will use special image description prompt.")
+                        processed_message = "" # Ensure it's empty to trigger image-only mode and use IMAGE_SYSTEM_PROMPT
+
                     # Process attachments if any.
                     images = []
                     attachment_paths = []
                     attachment_error = False
+                    multiple_images_sent = False
+                  
+                    # Track if multiple images were sent and only keep the last one.
+                    if len(attachment_ids) > 1:
+                        multiple_images_sent = True
+                        print(f"Multiple images detected ({len(attachment_ids)}). Will only process the last image.")
+
+                    # Always just process the last image.
+                    if attachment_ids:
+                        attachment_ids = [attachment_ids[-1]]
                     
                     for attachment_id in attachment_ids:
                         try:
@@ -642,7 +668,7 @@ def main():
                                 image_data = process_image_file(attachment_path)
                                 if image_data:
                                     images.append(image_data)
-                                    print(f"Successfully processed image attachment")
+                                    print(f"Successfully processed image attachment.")
                                 else:
                                     print(f"Failed to process image from {attachment_path}")
                                     attachment_error = True
@@ -656,13 +682,18 @@ def main():
                     # Verify if the message has content (text or images).
                     has_content = processed_message.strip() or (images and len(images) > 0)
                     if not has_content:
-                        print("No valid content in message, skipping response")
+                        print("No valid content in message. Skipping generating a response.")
                         continue
                     
                     try:
                         if images:
-                            print(f"Sending message with {len(images)} images to Claude")
+                            print(f"Sending message with {len(images)} images to Claude.")
                             answer = ask_claude_with_images(processed_message, images, conversations[convo_key])
+                            
+                            # If multiple images were sent, add a note to the beginning of the response
+                            if multiple_images_sent:
+                                answer = "Since only one image can be processed at a time, I will refer to the last image that you provided.\n\n" + answer
+                                print("Added multiple image notice to response.")
                         else:
                             answer = ask_claude(processed_message, conversations[convo_key])
                         
