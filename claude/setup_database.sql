@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS query_log (
     city TEXT,                                     -- City based on phone number
     possible_carrier TEXT,                         -- Possible carrier based on phone number
     location TEXT,                                 -- General location information
-    attachment_paths TEXT                          -- General location information
+    attachment_paths TEXT                          -- Location where attachments are on the server
 );
 
 -- Create index for faster queries.
