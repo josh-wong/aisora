@@ -75,6 +75,15 @@ def process_image_file(image_path):
                     # Maintain the aspect ratio.
                     img.thumbnail((4096, 4096))
                 
+                # If image has alpha channel (RGBA mode), convert to RGB before saving as JPEG
+                if img.mode == 'RGBA':
+                    print("Converting RGBA image to RGB mode for JPEG compatibility")
+                    # Create a new RGB image with white background
+                    rgb_img = Image.new('RGB', img.size, (255, 255, 255))
+                    # Paste the image on the background using alpha as mask
+                    rgb_img.paste(img, mask=img.split()[3])  # 3 is the alpha channel
+                    img = rgb_img
+                
                 # Save to a byte buffer.
                 buffer = io.BytesIO()
                 img.save(buffer, format="JPEG", quality=90)
