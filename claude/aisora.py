@@ -258,10 +258,12 @@ def ask_claude_with_images(question, images=None, conversation_id=None):
     try:
         print(f"Calling the Claude API with {len(images) if images else 0} image")
         print(f"Assigned model: {MODEL_CONFIG['model']}") # Add logging to show which model is used.
-        
-        # Use the specialized image system prompt when there is no question
-        current_system_prompt = IMAGE_SYSTEM_PROMPT if not original_question.strip() else SYSTEM_PROMPT
-        print(f"Using {'specialized image' if not original_question.strip() else 'standard'} system prompt")
+        # Use the specialized image system prompt when there is no question or a very brief one, or if specifically instructed to analyze the image without asking for clarification.
+        use_image_prompt = not original_question.strip() or \
+                         (len(original_question.strip()) < 15) or \
+                         "analyze the image thoroughly without asking for clarification" in original_question.lower()
+        current_system_prompt = IMAGE_SYSTEM_PROMPT if use_image_prompt else SYSTEM_PROMPT
+        print(f"Using {'specialized image' if use_image_prompt else 'standard'} system prompt")
         
         response = claude.messages.create(
             model=MODEL_CONFIG['model'],
@@ -643,7 +645,12 @@ def main():
                     # Special case for group chats with images to trigger direct image description.
                     if is_group and attachment_ids and (not processed_message.strip() or processed_message.strip() == ""):
                         print("Group message with images and no text content. Will use special image description prompt.")
-                        processed_message = "" # Ensure it's empty to trigger image-only mode and use IMAGE_SYSTEM_PROMPT
+                        processed_message = "" # Ensure it's empty to trigger image-only mode and use IMAGE_SYSTEM_PROMPT.
+                    
+                    # Even if there is a brief question with an image in a group chat, use the image description mode.
+                    elif is_group and attachment_ids and processed_message.strip() and len(processed_message.strip()) < 50:
+                        print("Group message with images and brief text. Will append special instruction to analyze image without asking for clarification.")
+                        processed_message = processed_message + "\nIMPORTANT: Analyze the image thoroughly without asking for clarification."
 
                     # Process attachments if any.
                     images = []
