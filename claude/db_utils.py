@@ -1,22 +1,28 @@
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from config import DB_CONFIG
+import json
 
 def get_db_connection():
     return psycopg2.connect(**DB_CONFIG)
 
 def log_conversation(sender, query, response, conversation_id, is_group=False, group_id=None, 
-                 sender_name=None, country=None, city=None, possible_carrier=None, location=None):
+                 sender_name=None, country=None, city=None, possible_carrier=None, location=None, attachment_paths=None):
     """Log a conversation to the database."""
+    # Convert the attachment_paths list to JSON string if provided.
+    attachment_paths_json = None
+    if attachment_paths:
+        attachment_paths_json = json.dumps(attachment_paths)
+    
     with get_db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute('''
                 INSERT INTO query_log 
                 (sender, query, response, timestamp, conversation_id, is_group, group_id, 
-                sender_name, country, city, possible_carrier, location)
-                VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, %s, %s, %s, %s)
+                sender_name, country, city, possible_carrier, location, attachment_paths)
+                VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ''', (sender, query, response, conversation_id, is_group, group_id, 
-                 sender_name, country, city, possible_carrier, location))
+                 sender_name, country, city, possible_carrier, location, attachment_paths_json))
         conn.commit()
 
 def get_conversation_history(conversation_id):

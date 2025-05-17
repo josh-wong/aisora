@@ -2,6 +2,7 @@ anthropic
 flask
 geopy
 phonenumbers
+pillow
 psutil
 psycopg2-binary
 requests
