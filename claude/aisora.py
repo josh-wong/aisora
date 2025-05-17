@@ -700,7 +700,7 @@ def main():
     kill_existing_signal_cli()
     proc = start_signal_cli_jsonrpc()
     print("Listening for incoming messages...") # Send a startup notification.
-    startup_message = f"🟢 {AI_ASSISTANT_NICKNAME} assistant is online and ready to respond."
+    startup_message = f"🟢 {AI_ASSISTANT_NICKNAME} is online and ready to respond."
     try:
         # Send to individual users.
         recipients = []
@@ -741,7 +741,7 @@ def main():
     def cleanup_handler():
         try:
             print("Assistant shutting down. Sending notification...")
-            shutdown_message = f"📴 {AI_ASSISTANT_NICKNAME} assistant is offline and will respond when back online."
+            shutdown_message = f"📴 {AI_ASSISTANT_NICKNAME} is offline and will respond when online."
             
             # Start a new signal-cli process specifically for sending shutdown notifications.
             # This ensures notifications get sent even if the main process is terminating.
