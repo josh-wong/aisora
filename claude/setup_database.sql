@@ -9,18 +9,19 @@
 -- Create the query_log table.
 CREATE TABLE IF NOT EXISTS query_log (
     id SERIAL PRIMARY KEY,
-    sender TEXT NOT NULL,              -- Phone number of the sender
-    query TEXT NOT NULL,                      -- Message from the user
-    response TEXT NOT NULL,                   -- Claude's response
-    conversation_id TEXT NOT NULL,     -- UUID for grouping conversations
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    is_group TEXT DEFAULT FALSE,           -- Whether the message was sent in a group
-    group_id TEXT,                    -- Group ID if message was sent in a group
-    sender_name TEXT,                 -- Name of the sender if available
-    country TEXT,                     -- Country based on phone number
-    city TEXT,                        -- City based on phone number
-    possible_carrier TEXT,            -- Possible carrier based on phone number
-    location TEXT                     -- General location information
+    sender TEXT NOT NULL,                          -- Phone number of the sender
+    query TEXT NOT NULL,                           -- Message from the user
+    response TEXT NOT NULL,                        -- Claude's response
+    conversation_id TEXT NOT NULL,                 -- UUID for grouping conversations
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Timestamp of the message
+    is_group TEXT DEFAULT FALSE,                   -- Whether the message was sent in a group
+    group_id TEXT,                                 -- Group ID if message was sent in a group
+    sender_name TEXT,                              -- Name of the sender if available
+    country TEXT,                                  -- Country based on phone number
+    city TEXT,                                     -- City based on phone number
+    possible_carrier TEXT,                         -- Possible carrier based on phone number
+    location TEXT,                                 -- General location information
+    attachment_paths TEXT                          -- Location where attachments are on the server
 );
 
 -- Create index for faster queries.
