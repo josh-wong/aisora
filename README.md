@@ -4,7 +4,7 @@ Aisora is an AI assistant for Signal with support for both Claude and Llama mode
 
 ## Features
 
-- Natural language conversation with AI models in direct messages or in group chats by mentioning ’@Aisora’
+- Natural language conversation with AI models in direct messages or in group chats by mentioning `@Aisora`
 - Support for Claude-based and Llama-based LLMs
 - Message history within conversations
 - Logging of user data
@@ -102,16 +102,14 @@ Open **config_TEMPLATE.py**, and edit the following configurations as described 
    - `SYSTEM_PROMPT`
    - `windows_model_path` (for Llama models only)
    
-   > [!IMPORTANT]
-   >
-   > Be sure to remove "_TEMPLATE" from the filename before using it.
+Remove `_TEMPLATE` from the filename before using it.
 
-   
-   > [!NOTE]
-   >
-   > The default Claude model is **claude-3-5-haiku-20241022**. You can change to a different Claude model in the configuration file.
-   >
-   > When using Llama models, make sure that you've downloaded a Llama .gguf file from Hugging Face. You must then specify the path of that model in the configuration file.
+> [!NOTE]
+>
+> **Regarding models**
+>
+> - **Claude:** The default Claude model is **claude-3-5-haiku-20241022**. You can change to a different Claude model in the configuration file.
+> - **Llama:** When using Llama models, make sure that you've downloaded a Llama .gguf file from Hugging Face. You must then specify the path of that model in the configuration file. 
 
 ## Start Aisora
 
