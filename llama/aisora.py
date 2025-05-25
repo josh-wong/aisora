@@ -125,10 +125,10 @@ def kill_existing_signal_cli():
             if cmdline and "signal-cli" in cmdline:
                 print(f"Terminating existing signal-cli process: PID {proc.info['pid']}")
                 os.kill(proc.info['pid'], signal.SIGKILL)
-                time.sleep(2)
+                time.sleep(3)
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             continue
-    time.sleep(1)
+    time.sleep(2)
 
 def start_signal_cli_jsonrpc():
     proc = subprocess.Popen(
@@ -556,7 +556,7 @@ def main():
             try:
                 send_signal_message(recipient, startup_message, proc)
                 print(f"Sent startup notification to {recipient}")
-                time.sleep(0.5) # Add a brief delay between messages.
+                time.sleep(2) # Add a brief delay between messages.
             except Exception as e:
                 print(f"Failed to send startup notification to {recipient}: {e}")
         
@@ -567,7 +567,7 @@ def main():
                 try:
                     send_signal_message(SIGNAL_NUMBER, startup_message, proc, group_id)
                     print(f"Sent startup notification to group {group_id}")
-                    time.sleep(0.5) # Add a brief delay between messages.
+                    time.sleep(5) # Add a brief delay between messages.
                 except Exception as e:
                     print(f"Failed to send startup notification to group {group_id}: {e}")
     except Exception as e:
@@ -603,7 +603,7 @@ def main():
                     try:
                         send_signal_message(recipient, shutdown_message, shutdown_proc)
                         print(f"Sent shutdown notification to {recipient}")
-                        time.sleep(0.5) # Add a brief delay between messages.
+                        time.sleep(2) # Add a brief delay between messages.
                     except Exception as e:
                         print(f"Failed to send shutdown notification to {recipient}: {e}")
                 
@@ -614,12 +614,12 @@ def main():
                         try:
                             send_signal_message(SIGNAL_NUMBER, shutdown_message, shutdown_proc, group_id)
                             print(f"Sent shutdown notification to group {group_id}")
-                            time.sleep(0.5) # Add a brief delay between messages.
+                            time.sleep(5) # Add a brief delay between messages.
                         except Exception as e:
                             print(f"Failed to send shutdown notification to group {group_id}: {e}")
                 
                 # Allow time for notifications to be sent.
-                time.sleep(3)
+                time.sleep(10)
                 
                 # Properly terminate the shutdown notification process.
                 shutdown_proc.terminate()
@@ -647,7 +647,7 @@ def main():
         if proc.poll() is not None:
             print("Detected that signal-cli has stopped. Restarting...")
             proc = start_signal_cli_jsonrpc()
-            time.sleep(2) # Add a small wait time to ensure signal-cli is ready.
+            time.sleep(3) # Add a small wait time to ensure signal-cli is ready.
 
         # Periodically clear the location cache to ensure fresh lookups.
         current_time = time.time()
