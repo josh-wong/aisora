@@ -11,6 +11,7 @@ import traceback
 from llama_cpp import Llama
 from config import SIGNAL_NUMBER, SYSTEM_PROMPT, AI_ASSISTANT_NICKNAME, MODEL_CONFIG, USE_LLAMA, LLAMA_MODEL_PATH
 from db_utils import log_conversation, get_recent_conversation_history
+from psycopg2.extras import RealDictCursor
 from location_utils import get_location_from_phone_number, clear_location_cache
 
 # Set an environment variable to enable IP-based location fallback.
