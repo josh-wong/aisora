@@ -7,6 +7,11 @@ SIGNAL_NUMBER = "+<PHONE_NUMBER>"
 # Bot name for mentions in group chats
 AI_ASSISTANT_NICKNAME = "<NICKNAME>"
 
+# Recipients for system notifications (startup, shutdown)
+# Set to "active_chats" to notify all users with whom the assistant has active chats.
+# Otherwise, provide a list of specific phone numbers: ["+1234567890", "+0987654321"]
+NOTIFICATION_RECIPIENTS = "active_chats"
+
 # Model configuration
 USE_LLAMA = True
 MODEL_CONFIG = {
