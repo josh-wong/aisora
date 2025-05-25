@@ -9,8 +9,10 @@ import uuid
 import re
 import traceback
 from llama_cpp import Llama
-from config import SIGNAL_NUMBER, SYSTEM_PROMPT, AI_ASSISTANT_NICKNAME, MODEL_CONFIG, USE_LLAMA, LLAMA_MODEL_PATH
-from db_utils import log_conversation, get_recent_conversation_history
+import atexit
+from config import SIGNAL_NUMBER, SYSTEM_PROMPT, AI_ASSISTANT_NICKNAME, MODEL_CONFIG, USE_LLAMA, LLAMA_MODEL_PATH, NOTIFICATION_RECIPIENTS, ACTIVE_CHAT_PERIOD_DAYS
+from db_utils import log_conversation, get_recent_conversation_history, get_db_connection
+from psycopg2.extras import RealDictCursor
 from location_utils import get_location_from_phone_number, clear_location_cache
 
 # Set an environment variable to enable IP-based location fallback.
@@ -123,10 +125,10 @@ def kill_existing_signal_cli():
             if cmdline and "signal-cli" in cmdline:
                 print(f"Terminating existing signal-cli process: PID {proc.info['pid']}")
                 os.kill(proc.info['pid'], signal.SIGKILL)
-                time.sleep(2)
+                time.sleep(3)
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             continue
-    time.sleep(1)
+    time.sleep(2)
 
 def start_signal_cli_jsonrpc():
     proc = subprocess.Popen(
@@ -379,6 +381,37 @@ def remove_mention(message):
     
     return result
 
+def send_notification(message, proc, notify_to=None):
+    """Send notification messages to specified numbers or a default list."""
+    # If no recipients specified, check for a notification list in the configuration file.
+    try:
+        # Determine the recipients for the notification.
+        if notify_to:
+            # Use explicitly provided recipients.
+            recipients = notify_to
+        elif NOTIFICATION_RECIPIENTS == "active_chats":
+            # Get a list of all users who have active conversations with the assistant.
+            recipients = get_active_chat_participants()
+        else:
+            # Use the configured list of notification recipients.
+            recipients = NOTIFICATION_RECIPIENTS
+        
+        # Ensure recipients is a list.
+        if not isinstance(recipients, list):
+            recipients = [recipients]
+        
+        # Remove duplicates.
+        recipients = list(set(recipients))
+        
+        for recipient in recipients:
+            try:
+                send_signal_message(recipient, message, proc)
+                print(f"Notification sent to {recipient}: {message}")
+            except Exception as e:
+                print(f"Failed to send notification to {recipient}: {e}")
+    except Exception as e:
+        print(f"Error in send_notification: {e}")
+
 def format_mentions_for_db(message):
     """Format message to replace replacement characters with proper @ symbol for database storage"""
     # Look for various encodings of the @ symbol that Signal might use.
@@ -405,10 +438,205 @@ def format_mentions_for_db(message):
     
     return processed_message
 
+def get_active_chat_participants():
+    """Get a list of all user phone numbers who have active conversations with the assistant."""
+    participants = []
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                # Query for unique phone numbers that have sent messages within the configured active period.
+                cur.execute("""
+                    SELECT DISTINCT sender
+                    FROM query_log
+                    WHERE timestamp > NOW() - INTERVAL %s
+                    AND sender IS NOT NULL
+                    AND sender != %s
+                """, (f"{ACTIVE_CHAT_PERIOD_DAYS} days", SIGNAL_NUMBER,))
+                
+                results = cur.fetchall()
+                for result in results:
+                    if result['sender'] and isinstance(result['sender'], str) and result['sender'].startswith('+'):
+                        participants.append(result['sender'])
+                
+                print(f"Found {len(participants)} active chat participants for notifications")
+        return participants
+    except Exception as e:
+        print(f"Error getting active chat participants: {e}")
+        import traceback
+        traceback.print_exc()
+        # If the list can't be retrieved, return just the assistant's number as a fallback.
+        return [SIGNAL_NUMBER]
+
+def get_active_chat_groups():
+    """Get a list of all group IDs where the assistant has been active in the last 8 days"""
+    groups = []
+    try:
+        # First check the data type of is_group.
+        column_type = get_group_column_type()
+        
+        with get_db_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                # Query for unique group IDs within the configured active period. Then, adapt the query based on the column type.
+                if column_type and 'text' in column_type.lower():
+                    # For text data type, compare it with the 't' or 'true' string.
+                    cur.execute("""
+                        SELECT DISTINCT group_id
+                        FROM query_log
+                        WHERE timestamp > NOW() - INTERVAL %s
+                        AND (is_group = 't' OR is_group = 'true')
+                        AND group_id IS NOT NULL
+                    """, (f"{ACTIVE_CHAT_PERIOD_DAYS} days",))
+                else:
+                    # Otherwise, check for the boolean data type or an unknown data type.
+                    cur.execute("""
+                        SELECT DISTINCT group_id
+                        FROM query_log
+                        WHERE timestamp > NOW() - INTERVAL %s
+                        AND CAST(is_group AS BOOLEAN) = TRUE
+                        AND group_id IS NOT NULL
+                    """, (f"{ACTIVE_CHAT_PERIOD_DAYS} days",))
+                
+                results = cur.fetchall()
+                for result in results:
+                    if result['group_id']:
+                        groups.append(result['group_id'])
+                
+                print(f"Found {len(groups)} active group chats for notifications.")
+        return groups
+    except Exception as e:
+        print(f"Error getting active group chats: {e}")
+        import traceback
+        traceback.print_exc()
+        return []
+
+def get_group_column_type():
+    """Check the data type of the is_group column in the query_log table."""
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT column_name, data_type 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'query_log' 
+                    AND column_name = 'is_group'
+                """)
+                result = cur.fetchone()
+                if result:
+                    print(f"is_group column type: {result[1]}")
+                    return result[1]
+                else:
+                    print("is_group column not found")
+                    return None
+    except Exception as e:
+        print(f"Error checking is_group column type: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
 def main():
     kill_existing_signal_cli()
     proc = start_signal_cli_jsonrpc()
-    print("Listening for incoming messages...")
+    print("Listening for incoming messages...") # Send a startup notification.
+    startup_message = f"🟢 {AI_ASSISTANT_NICKNAME} is online and ready to respond."
+    try:
+        # Send to individual users.
+        recipients = []
+        if NOTIFICATION_RECIPIENTS == "active_chats":
+            recipients = get_active_chat_participants()
+        elif isinstance(NOTIFICATION_RECIPIENTS, list):
+            recipients = NOTIFICATION_RECIPIENTS
+        else:
+            recipients = [NOTIFICATION_RECIPIENTS]
+        
+        # Remove duplicates.
+        recipients = list(set(recipients))
+        
+        # Send message to each recipient.
+        for recipient in recipients:
+            try:
+                send_signal_message(recipient, startup_message, proc)
+                print(f"Sent startup notification to {recipient}")
+                time.sleep(2) # Add a brief delay between messages.
+            except Exception as e:
+                print(f"Failed to send startup notification to {recipient}: {e}")
+        
+        # Also send to active group chats if configured to use active_chats.
+        if NOTIFICATION_RECIPIENTS == "active_chats":
+            group_ids = get_active_chat_groups()
+            for group_id in group_ids:
+                try:
+                    send_signal_message(SIGNAL_NUMBER, startup_message, proc, group_id)
+                    print(f"Sent startup notification to group {group_id}")
+                    time.sleep(5) # Add a brief delay between messages.
+                except Exception as e:
+                    print(f"Failed to send startup notification to group {group_id}: {e}")
+    except Exception as e:
+        print(f"Error sending startup notifications: {e}")
+        import traceback
+        traceback.print_exc()
+      # Register the cleanup function to send notification on shutdown.
+    def cleanup_handler():
+        try:
+            print("Assistant shutting down. Sending notification...")
+            shutdown_message = f"📴 {AI_ASSISTANT_NICKNAME} is offline and will respond when online."
+            
+            # Start a new signal-cli process specifically for sending shutdown notifications.
+            # This ensures notifications get sent even if the main process is terminating.
+            try:
+                shutdown_proc = start_signal_cli_jsonrpc()
+                print("Started separate signal-cli process for shutdown notifications")
+                
+                # Get recipients based on configuration.
+                recipients = []
+                if NOTIFICATION_RECIPIENTS == "active_chats":
+                    recipients = get_active_chat_participants()
+                elif isinstance(NOTIFICATION_RECIPIENTS, list):
+                    recipients = NOTIFICATION_RECIPIENTS
+                else:
+                    recipients = [NOTIFICATION_RECIPIENTS]
+                
+                # Remove duplicates.
+                recipients = list(set(recipients))
+                
+                # Send a notification to each recipient.
+                for recipient in recipients:
+                    try:
+                        send_signal_message(recipient, shutdown_message, shutdown_proc)
+                        print(f"Sent shutdown notification to {recipient}")
+                        time.sleep(2) # Add a brief delay between messages.
+                    except Exception as e:
+                        print(f"Failed to send shutdown notification to {recipient}: {e}")
+                
+                # Also send to active group chats if configured to use active_chats.
+                if NOTIFICATION_RECIPIENTS == "active_chats":
+                    group_ids = get_active_chat_groups()
+                    for group_id in group_ids:
+                        try:
+                            send_signal_message(SIGNAL_NUMBER, shutdown_message, shutdown_proc, group_id)
+                            print(f"Sent shutdown notification to group {group_id}")
+                            time.sleep(5) # Add a brief delay between messages.
+                        except Exception as e:
+                            print(f"Failed to send shutdown notification to group {group_id}: {e}")
+                
+                # Allow time for notifications to be sent.
+                time.sleep(10)
+                
+                # Properly terminate the shutdown notification process.
+                shutdown_proc.terminate()
+                shutdown_proc.wait(timeout=2)
+                
+            except Exception as e:
+                print(f"Error with shutdown notification process: {e}")
+                import traceback
+                traceback.print_exc()
+                
+        except Exception as e:
+            print(f"Error during shutdown notification: {e}")
+            import traceback
+            traceback.print_exc()
+
+    # Register the cleanup function to run when the script exits.
+    atexit.register(cleanup_handler)
 
     # Store conversation IDs.
     conversations = {}
@@ -419,7 +647,7 @@ def main():
         if proc.poll() is not None:
             print("Detected that signal-cli has stopped. Restarting...")
             proc = start_signal_cli_jsonrpc()
-            time.sleep(2) # Add a small wait time to ensure signal-cli is ready.
+            time.sleep(3) # Add a small wait time to ensure signal-cli is ready.
 
         # Periodically clear the location cache to ensure fresh lookups.
         current_time = time.time()
