@@ -7,6 +7,8 @@ Aisora is an AI assistant for Signal with support for both Claude and Llama mode
 - Natural language conversation with AI models in direct messages or in group chats by mentioning `@Aisora`
 - Support for Claude-based and Llama-based LLMs
 - Message history within conversations
+- Automatic online/offline notifications to active chat participants
+  - Configurable active chat period
 - Logging of user data
 
 ## Maintenance support policy
@@ -122,3 +124,26 @@ Start Aisora by running the following command:
 ## Stop Aisora
 
 Stop Aisora by pressing **Ctrl + C** to stop the script or close Terminal.
+
+## Online/offline notifications
+
+Aisora automatically sends status notifications when it starts up or shuts down:
+
+- 🟢 When Aisora starts up, it sends the following message: `🟢 <AI_ASSISTANT_NICKNAME> is online and ready to respond.`
+- 📴 When Aisora shuts down, it sends the following message: `📴 <AI_ASSISTANT_NICKNAME> is offline and will respond when online.`
+
+These notifications are sent to:
+
+- Individual users who have active conversations with Aisora within the configurable active period (default: 8 days)
+- Group chats where Aisora has been active (included in `@` replies) within the configurable active period (default: 8 days)
+
+### Configure notifications
+
+You can customize notification behavior in the `config_TEMPLATE.py` file:
+
+- `ACTIVE_CHAT_PERIOD_DAYS`: Controls how far back Aisora looks for active chats (default: 8 days)
+- `NOTIFICATION_RECIPIENTS`: Can be set to:
+  - `"active_chats"`: Notify all users who have active conversations with Aisora (default)
+  - A list of specific phone numbers: `["+1234567890", "+0987654321"]`
+
+This feature helps users know when Aisora is available to respond and when it might be temporarily unavailable.
