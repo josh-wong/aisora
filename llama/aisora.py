@@ -10,7 +10,7 @@ import re
 import traceback
 from llama_cpp import Llama
 import atexit
-from config import SIGNAL_NUMBER, SYSTEM_PROMPT, AI_ASSISTANT_NICKNAME, MODEL_CONFIG, USE_LLAMA, LLAMA_MODEL_PATH, NOTIFICATION_RECIPIENTS
+from config import SIGNAL_NUMBER, SYSTEM_PROMPT, AI_ASSISTANT_NICKNAME, MODEL_CONFIG, USE_LLAMA, LLAMA_MODEL_PATH, NOTIFICATION_RECIPIENTS, ACTIVE_CHAT_PERIOD_DAYS
 from db_utils import log_conversation, get_recent_conversation_history, get_db_connection
 from psycopg2.extras import RealDictCursor
 from location_utils import get_location_from_phone_number, clear_location_cache
@@ -444,14 +444,14 @@ def get_active_chat_participants():
     try:
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                # Query for unique phone numbers that have sent messages within the last 8 days.
+                # Query for unique phone numbers that have sent messages within the configured active period.
                 cur.execute("""
                     SELECT DISTINCT sender
                     FROM query_log
-                    WHERE timestamp > NOW() - INTERVAL '8 days'
+                    WHERE timestamp > NOW() - INTERVAL %s
                     AND sender IS NOT NULL
                     AND sender != %s
-                """, (SIGNAL_NUMBER,))
+                """, (f"{ACTIVE_CHAT_PERIOD_DAYS} days", SIGNAL_NUMBER,))
                 
                 results = cur.fetchall()
                 for result in results:
@@ -476,25 +476,25 @@ def get_active_chat_groups():
         
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                # Query for unique group IDs from the last 8 days. Then, adapt the query based on the column type.
+                # Query for unique group IDs within the configured active period. Then, adapt the query based on the column type.
                 if column_type and 'text' in column_type.lower():
                     # For text data type, compare it with the 't' or 'true' string.
                     cur.execute("""
                         SELECT DISTINCT group_id
                         FROM query_log
-                        WHERE timestamp > NOW() - INTERVAL '8 days'
+                        WHERE timestamp > NOW() - INTERVAL %s
                         AND (is_group = 't' OR is_group = 'true')
                         AND group_id IS NOT NULL
-                    """)
+                    """, (f"{ACTIVE_CHAT_PERIOD_DAYS} days",))
                 else:
                     # Otherwise, check for the boolean data type or an unknown data type.
                     cur.execute("""
                         SELECT DISTINCT group_id
                         FROM query_log
-                        WHERE timestamp > NOW() - INTERVAL '8 days'
+                        WHERE timestamp > NOW() - INTERVAL %s
                         AND CAST(is_group AS BOOLEAN) = TRUE
                         AND group_id IS NOT NULL
-                    """)
+                    """, (f"{ACTIVE_CHAT_PERIOD_DAYS} days",))
                 
                 results = cur.fetchall()
                 for result in results:
