@@ -4,7 +4,7 @@ Aisora is an AI assistant for Signal with support for both Claude and Llama mode
 
 ## Features
 
-- Natural language conversation with AI models in direct messages or in group chats by mentioning @Aisora
+- Natural language conversation with AI models in direct messages or in group chats by mentioning ’@Aisora’
 - Support for Claude-based and Llama-based LLMs
 - Message history within conversations
 - Logging of user data
@@ -23,7 +23,6 @@ Major, minor, and patch versions are supported only until the latest version is 
 - PostgreSQL database
 - Signal Desktop application
 - Anthropic API key (for Claude access)
-- Ollama installation (for Llama models access)
 
 ## Install Aisora
 
