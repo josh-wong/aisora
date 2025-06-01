@@ -1,7 +1,7 @@
 import re
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from db_utils import get_db_connection
 from psycopg2.extras import RealDictCursor
 
@@ -221,12 +221,126 @@ def get_restricted_content_response(category):
         "I'm unable to process this request as it may violate content guidelines."
     )
 
+def check_violation_count(sender):
+    """Check how many violations a user has in the last 24 hours."""
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                # Count violations in the last 24 hours.
+                cur.execute("""
+                    SELECT COUNT(*) FROM filtered_requests
+                    WHERE sender = %s 
+                    AND timestamp > NOW() - INTERVAL '24 hours'
+                """, (sender,))
+                
+                count = cur.fetchone()[0]
+                return count
+                
+    except Exception as e:
+        print(f"Error checking violation count: {e}")
+        return 0
+
+def auto_restrict_user(sender, reason=None):
+    """Automatically restrict a user after multiple violations."""
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                # Set an expiration time to 24 hours from now.
+                expiration_time = datetime.now() + timedelta(hours=24)
+                
+                # Check if the user already exists in the restrictions table.
+                cur.execute("""
+                    SELECT id, violation_count FROM user_restrictions 
+                    WHERE sender = %s
+                """, (sender,))
+                
+                result = cur.fetchone()
+                
+                if result:
+                    # Update the existing user record.
+                    user_id, current_violations = result
+                    new_count = current_violations + 1
+                    
+                    cur.execute("""
+                        UPDATE user_restrictions
+                        SET is_restricted = TRUE,
+                            restriction_reason = %s,
+                            restriction_level = 'auto',
+                            violation_count = %s,
+                            last_violation_date = %s,
+                            restriction_date = %s,
+                            expiration_date = %s,
+                            notes = CONCAT(COALESCE(notes, ''), '\nAuto-restricted on ', %s)
+                        WHERE sender = %s
+                    """, (
+                        reason,
+                        new_count,
+                        datetime.now(),
+                        datetime.now(),
+                        expiration_time,
+                        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        sender
+                    ))
+                else:
+                    # Insert a new user restriction.
+                    cur.execute("""
+                        INSERT INTO user_restrictions
+                        (sender, is_restricted, restriction_reason, restriction_level,
+                        violation_count, last_violation_date, restriction_date, expiration_date, notes)
+                        VALUES (%s, TRUE, %s, 'auto', 1, %s, %s, %s, %s)
+                    """, (
+                        sender,
+                        reason,
+                        datetime.now(),
+                        datetime.now(),
+                        expiration_time,
+                        f"Auto-restricted on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                    ))
+                
+                conn.commit()
+                print(f"User {sender} has been automatically restricted for 24 hours. Reason: {reason}")
+                return True
+                
+    except Exception as e:
+        print(f"Error auto-restricting user: {e}")
+        return False
+
+def check_and_lift_expired_restrictions():
+    """Check for and lift expired restrictions."""
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                # Find expired restrictions
+                cur.execute("""
+                    UPDATE user_restrictions
+                    SET is_restricted = FALSE,
+                        notes = CONCAT(COALESCE(notes, ''), '\nRestriction automatically lifted on ', %s)
+                    WHERE is_restricted = TRUE
+                    AND expiration_date IS NOT NULL
+                    AND expiration_date <= NOW()
+                """, (datetime.now().strftime("%Y-%m-%d %H:%M:%S"),))
+                
+                count = cur.rowcount
+                conn.commit()
+                
+                if count > 0:
+                    print(f"Lifted restrictions for {count} users with expired restriction periods.")
+                
+                return count
+                
+    except Exception as e:
+        print(f"Error lifting expired restrictions: {e}")
+        return 0
+
 def filter_content(content, sender=None):
     """
     Main content-filtering function.
     Returns a tuple: (filtered_content, is_filtered, reason)
     If content is filtered, filtered_content will be None.
     """
+    # First, check for and lift any expired restrictions.
+    check_and_lift_expired_restrictions()
+    
     is_inappropriate, reason, category = detect_inappropriate_content(content, sender)
     
     if is_inappropriate:
@@ -234,8 +348,18 @@ def filter_content(content, sender=None):
         if sender:
             log_filtered_request(sender, content, reason, category)
             
-        response = get_restricted_content_response(category)
-        return (None, True, response)
+            # Check if this user has had multiple violations in the past 24 hours.
+            violation_count = check_violation_count(sender)
+            if violation_count >= 2: # Including the current violation
+                auto_restrict_user(sender, f"Multiple content violations: {reason}")
+                response = get_restricted_content_response("restricted_user")
+            else:
+                response = get_restricted_content_response(category)
+                
+            return (None, True, response)
+        else:
+            response = get_restricted_content_response(category)
+            return (None, True, response)
     
     # Content is appropriate
     return (content, False, None)
