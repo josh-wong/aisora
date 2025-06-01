@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS user_restrictions (
     violation_count INTEGER DEFAULT 0,
     last_violation_date TIMESTAMP,
     restriction_date TIMESTAMP,
+    expiration_date TIMESTAMP,
     appeal_status TEXT DEFAULT 'none',
     appeal_date TIMESTAMP,
     notes TEXT
