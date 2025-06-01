@@ -154,21 +154,21 @@ def get_violation_history(sender):
                 filtered_requests = cur.fetchall()
                 
                 # Display user info.
-                print("\nUser Restriction Information:")
+                print("\nUser restriction information:")
                 print("-" * 80)
                 if user_info:
                     is_restricted = user_info[2] # Assuming column index 2 is is_restricted.
-                    status = "RESTRICTED" if is_restricted else "Not Restricted"
+                    status = "RESTRICTED" if is_restricted else "Not restricted"
                     print(f"User ID: {sender}")
                     print(f"Status: {status}")
-                    print(f"Violation Count: {user_info[5]}") # Assuming column index 5 is violation_count
-                    print(f"Last Violation: {user_info[6]}") # Assuming column index 6 is last_violation_date
-                    print(f"Restriction Reason: {user_info[3]}")
-                    print(f"Restriction Level: {user_info[4]}")
+                    print(f"Violation count: {user_info[5]}") # Assuming column index 5 is violation_count
+                    print(f"Last violation: {user_info[6]}") # Assuming column index 6 is last_violation_date
+                    print(f"Restriction reason: {user_info[3]}")
+                    print(f"Restriction level: {user_info[4]}")
                 
                 # Display filtered requests.
                 if filtered_requests:
-                    print("\nFiltered Request History:")
+                    print("\nFiltered request history:")
                     print("-" * 80)
                     for i, req in enumerate(filtered_requests, 1):
                         timestamp = req[5].strftime("%Y-%m-%d %H:%M:%S") if req[5] else "N/A"
