@@ -368,11 +368,16 @@ def check_and_lift_expired_restrictions():
         print(f"Error lifting expired restrictions: {e}")
         return 0
 
-def filter_content(content, sender=None):
+def filter_content(content, sender=None, formatted_content=None):
     """
     Main content-filtering function.
     Returns a tuple: (filtered_content, is_filtered, reason)
     If content is filtered, filtered_content will be None.
+    
+    Parameters:
+        content: The raw message content
+        sender: The sender's phone number
+        formatted_content: Optional formatted content with proper mentions (for logging)
     """
     # First, check for and lift any expired restrictions.
     check_and_lift_expired_restrictions()
@@ -380,9 +385,9 @@ def filter_content(content, sender=None):
     is_inappropriate, reason, category = detect_inappropriate_content(content, sender)
     
     if is_inappropriate:
-        # Log the filtered request.
+        # Log the filtered request, using formatted_content if provided.
         if sender:
-            log_filtered_request(sender, content, reason, category)
+            log_filtered_request(sender, formatted_content or content, reason, category)
             
             # Check if this user has had multiple violations in the past 24 hours.
             violation_count = check_violation_count(sender)
