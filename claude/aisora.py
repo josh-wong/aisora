@@ -207,8 +207,17 @@ def get_recent_attachment_paths(conversation_id, limit=1):
             
             return attachment_paths
 
-def ask_claude_with_images(question, images=None, conversation_id=None):
+def ask_claude_with_images(question, images=None, conversation_id=None, sender=None, formatted_content=None):
     """Send a message to Claude with optional image."""
+    # Import content filter here to avoid circular imports.
+    from content_filter import filter_content
+    
+    # Apply content filtering to the question.
+    filtered_question, is_filtered, filter_reason = filter_content(question, sender, formatted_content)
+    if is_filtered:
+        print(f"Content filtered. Reason: {filter_reason}")
+        return filter_reason
+    
     print(f"Sending question with image to Claude: {question[:50]}...")
     
     # Start building the message content.
@@ -222,7 +231,7 @@ def ask_claude_with_images(question, images=None, conversation_id=None):
                 print("Added image to message content.")
     
     # Check if this is a follow-up query with images from the conversation history.
-    is_followup = conversation_id and question.strip() and images    # For short questions with images, enhance the prompt.
+    is_followup = conversation_id and question.strip() and images # For short questions with images, enhance the prompt.
     original_question = question
     if is_followup:
         # For follow-up queries, focus on answering just the question.
@@ -281,7 +290,16 @@ def ask_claude_with_images(question, images=None, conversation_id=None):
         traceback.print_exc()
         raise e
 
-def ask_claude(question, conversation_id=None): # Check if any recent images need to be included.
+def ask_claude(question, conversation_id=None, sender=None, formatted_content=None): # Check if any recent images need to be included.
+    # Import content filter here to avoid circular imports.
+    from content_filter import filter_content
+    
+    # Apply content filtering to the question.
+    filtered_question, is_filtered, filter_reason = filter_content(question, sender, formatted_content)
+    if is_filtered:
+        print(f"Content filtered. Reason: {filter_reason}")
+        return filter_reason
+        
     previous_images = []
     if conversation_id:
         # Get the paths to recent attachments.
@@ -918,23 +936,24 @@ def main():
                     if not has_content:
                         print("No valid content in message. Skipping generating a response.")
                         continue
-                    
-                    try:
+                      try:
+                        # Format the message for database logging to preserve mentions.
+                        formatted_message = format_mentions_for_db(message)
+                        
                         if images:
                             print(f"Sending message with {len(images)} images to Claude.")
-                            answer = ask_claude_with_images(processed_message, images, conversations[convo_key])
+                            answer = ask_claude_with_images(processed_message, images, conversations[convo_key], sender, formatted_message)
                             
-                            # If multiple images were sent, add a note to the beginning of the response
+                            # If multiple images were sent, add a note to the beginning of the response.
                             if multiple_images_sent:
                                 answer = "Since only one image can be processed at a time, I will refer to the last image that you provided.\n\n" + answer
                                 print("Added multiple image notice to response.")
                         else:
-                            answer = ask_claude(processed_message, conversations[convo_key])
+                            answer = ask_claude(processed_message, conversations[convo_key], sender, formatted_message)
                         
                         print(f"Claude's answer: {answer}")
-                        
-                        # Log the conversation with all location data available.
-                        formatted_message = format_mentions_for_db(message)
+                          # Log the conversation with all location data available.
+                        # formatted_message was already created above.
                         log_conversation(
                             sender, 
                             formatted_message, 
