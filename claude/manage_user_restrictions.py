@@ -28,7 +28,9 @@ def restrict_user(sender, reason=None, level="warning"):
                             restriction_level = %s,
                             violation_count = %s,
                             last_violation_date = %s,
-                            restriction_date = %s
+                            restriction_date = %s,
+                            appeal_status = NULL,
+                            appeal_date = NULL
                         WHERE sender = %s
                     """, (
                         reason,
