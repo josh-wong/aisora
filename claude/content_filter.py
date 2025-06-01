@@ -29,7 +29,7 @@ INAPPROPRIATE_CATEGORIES = {
     "unethical_requests": [
         r"(write|create)\s+(school|college|university)\s+(essay|paper|assignment)",
         r"(cheat|hack).{1,20}(exam|test|quiz)",
-        r"(manipulate|deceive|trick)\s+people",
+        r"(manipulate|deceive|trick)\s+(someone|people|a person)",
         r"(spread|create)\s+(misinformation|fake\s+news|propaganda)",
         r"(deepfake|fake).{1,10}(imagery|video|audio)",
     ],
@@ -77,7 +77,8 @@ def check_user_restrictions(sender):
                     ) AS table_exists;
                 """)
                 
-                if not cur.fetchone()['table_exists']:
+                result = cur.fetchone()
+                if not result or not result['table_exists']:
                     print("The user_restrictions table doesn't exist yet")
                     return False
                 
@@ -115,12 +116,15 @@ def log_filtered_request(sender, content, filtered_reason, category=None):
                     ) AS table_exists;
                 """)
                 
-                if not cur.fetchone()['table_exists']:
+                result = cur.fetchone()
+                table_exists = result[0] if result else False
+                
+                if not table_exists:
                     # Create the table if it doesn't exist.
                     cur.execute("""
-                        CREATE TABLE filtered_requests (
+                        CREATE TABLE IF NOT EXISTS filtered_requests (
                             id SERIAL PRIMARY KEY,
-                            sender TEXT,
+                            sender TEXT NOT NULL,
                             content TEXT,
                             filtered_reason TEXT,
                             category TEXT,
@@ -178,7 +182,7 @@ def detect_inappropriate_content(content, sender=None):
     # Step 2: Check for obvious inappropriate terms first (quick check).
     for term in INAPPROPRIATE_TERMS:
         if re.search(term, content_lower, re.IGNORECASE):
-            # If a term found, check for legitimate context.
+            # If a term is found, check for legitimate context.
             if is_legitimate_context(content):
                 # Allow content that discusses topics in legitimate contexts.
                 continue
@@ -233,5 +237,5 @@ def filter_content(content, sender=None):
         response = get_restricted_content_response(category)
         return (None, True, response)
     
-    # The content is deemed appropriate.
+    # Content is appropriate
     return (content, False, None)
