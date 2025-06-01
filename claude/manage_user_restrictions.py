@@ -1,4 +1,4 @@
-# This script is for manually managing user restrictions for content filtering in a system. You likely won't need to use this since automated user restrictions are handled in contet_filter.py. However, if you want to manually restrict or unrestrict users, you can use this script.
+# This script is for manually managing user restrictions for content filtering in a system. You likely won't need to use this since automated user restrictions are handled in content_filter.py. However, if you want to manually restrict or unrestrict users, you can use this script.
 import argparse
 from datetime import datetime
 from db_utils import get_db_connection
