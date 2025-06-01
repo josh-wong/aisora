@@ -175,9 +175,14 @@ def detect_inappropriate_content(content, sender=None):
     if sender:
         user_restriction = check_user_restrictions(sender)
         if user_restriction:
-            return (True, 
-                    f"User is restricted: {user_restriction['reason']}", 
-                    "restricted_user")
+            if user_restriction['level'] == 'permanent':
+                return (True, 
+                        f"User is permanently banned: {user_restriction['reason']}", 
+                        "permanent_ban")
+            else:
+                return (True, 
+                        f"User is restricted: {user_restriction['reason']}", 
+                        "restricted_user")
     
     # Step 2: Check for obvious inappropriate terms first (quick check).
     for term in INAPPROPRIATE_TERMS:
@@ -213,7 +218,8 @@ def get_restricted_content_response(category):
         "unethical_requests": "I cannot assist with requests that violate ethical guidelines.",
         "hate_speech": "I cannot generate or engage with content that promotes hate speech.",
         "inappropriate_term": "Your message contains content that I'm not able to respond to.",
-        "restricted_user": "Your account has been restricted due to previous violations of our content policy."
+        "restricted_user": "Your account has been restricted due to previous violations of our content policy.",
+        "permanent_ban": "Your account has been permanently banned due to repeated violations of our content policy. Further requests will not be processed."
     }
     
     return responses.get(
@@ -245,9 +251,6 @@ def auto_restrict_user(sender, reason=None):
     try:
         with get_db_connection() as conn:
             with conn.cursor() as cur:
-                # Set an expiration time to 24 hours from now.
-                expiration_time = datetime.now() + timedelta(hours=24)
-                
                 # Check if the user already exists in the restrictions table.
                 cur.execute("""
                     SELECT id, violation_count FROM user_restrictions 
@@ -261,28 +264,60 @@ def auto_restrict_user(sender, reason=None):
                     user_id, current_violations = result
                     new_count = current_violations + 1
                     
-                    cur.execute("""
-                        UPDATE user_restrictions
-                        SET is_restricted = TRUE,
-                            restriction_reason = %s,
-                            restriction_level = 'auto',
-                            violation_count = %s,
-                            last_violation_date = %s,
-                            restriction_date = %s,
-                            expiration_date = %s,
-                            notes = CONCAT(COALESCE(notes, ''), '\nAuto-restricted on ', %s)
-                        WHERE sender = %s
-                    """, (
-                        reason,
-                        new_count,
-                        datetime.now(),
-                        datetime.now(),
-                        expiration_time,
-                        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        sender
-                    ))
+                    # Check if this user should be permanently banned (6+ violations).
+                    if new_count >= 6:
+                        # Permanent ban - No expiration date
+                        cur.execute("""
+                            UPDATE user_restrictions
+                            SET is_restricted = TRUE,
+                                restriction_reason = %s,
+                                restriction_level = 'permanent',
+                                violation_count = %s,
+                                last_violation_date = %s,
+                                restriction_date = %s,
+                                expiration_date = NULL,
+                                notes = CONCAT(COALESCE(notes, ''), '\nPermanently banned on ', %s, ' after ', %s, ' violations.')
+                            WHERE sender = %s
+                        """, (
+                            f"Permanent ban: {reason}",
+                            new_count,
+                            datetime.now(),
+                            datetime.now(),
+                            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            str(new_count),
+                            sender
+                        ))
+                        conn.commit()
+                        print(f"User {sender} has been PERMANENTLY BANNED after {new_count} violations. Reason: {reason}")
+                    else:
+                        # Temporary 24-hour restriction.
+                        expiration_time = datetime.now() + timedelta(hours=24)
+                        cur.execute("""
+                            UPDATE user_restrictions
+                            SET is_restricted = TRUE,
+                                restriction_reason = %s,
+                                restriction_level = 'auto',
+                                violation_count = %s,
+                                last_violation_date = %s,
+                                restriction_date = %s,
+                                expiration_date = %s,
+                                notes = CONCAT(COALESCE(notes, ''), '\nAuto-restricted on ', %s)
+                            WHERE sender = %s
+                        """, (
+                            reason,
+                            new_count,
+                            datetime.now(),
+                            datetime.now(),
+                            expiration_time,
+                            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            sender
+                        ))
+                        conn.commit()
+                        print(f"User {sender} has been automatically restricted for 24 hours. Reason: {reason}")
                 else:
                     # Insert a new user restriction.
+                    # Set an expiration time to 24 hours from now for a new user's first violation.
+                    expiration_time = datetime.now() + timedelta(hours=24)
                     cur.execute("""
                         INSERT INTO user_restrictions
                         (sender, is_restricted, restriction_reason, restriction_level,
@@ -296,9 +331,9 @@ def auto_restrict_user(sender, reason=None):
                         expiration_time,
                         f"Auto-restricted on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
                     ))
+                    conn.commit()
+                    print(f"User {sender} has been automatically restricted for 24 hours. Reason: {reason}")
                 
-                conn.commit()
-                print(f"User {sender} has been automatically restricted for 24 hours. Reason: {reason}")
                 return True
                 
     except Exception as e:
@@ -310,7 +345,7 @@ def check_and_lift_expired_restrictions():
     try:
         with get_db_connection() as conn:
             with conn.cursor() as cur:
-                # Find expired restrictions
+                # Find expired restrictions (exclude permanent bans).
                 cur.execute("""
                     UPDATE user_restrictions
                     SET is_restricted = FALSE,
@@ -318,6 +353,7 @@ def check_and_lift_expired_restrictions():
                     WHERE is_restricted = TRUE
                     AND expiration_date IS NOT NULL
                     AND expiration_date <= NOW()
+                    AND restriction_level != 'permanent'
                 """, (datetime.now().strftime("%Y-%m-%d %H:%M:%S"),))
                 
                 count = cur.rowcount
@@ -352,7 +388,13 @@ def filter_content(content, sender=None):
             violation_count = check_violation_count(sender)
             if violation_count >= 2: # Including the current violation
                 auto_restrict_user(sender, f"Multiple content violations: {reason}")
-                response = get_restricted_content_response("restricted_user")
+                
+                # After restriction, check if they're now permanently banned.
+                user_status = check_user_restrictions(sender)
+                if user_status and user_status['level'] == 'permanent':
+                    response = get_restricted_content_response("permanent_ban")
+                else:
+                    response = get_restricted_content_response("restricted_user")
             else:
                 response = get_restricted_content_response(category)
                 
