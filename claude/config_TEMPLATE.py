@@ -34,6 +34,10 @@ NOTIFICATION_RECIPIENTS = "active_chats"
 # Number of days to consider a chat "active" for notifications and status tracking (default value: 8 days)
 ACTIVE_CHAT_PERIOD_DAYS = 8
 
+# Usage limits 
+USAGE_LIMITS_ENABLED = True # Set to False to disable usage limits entirely. Set to True to enable usage limits.
+DEFAULT_DAILY_MESSAGE_LIMIT = 10 # Set the messages per day per user. Set to 0 for unlimited messages.
+
 # The system prompt for the AI assistant
 SYSTEM_PROMPT = """
 <PROMPT>
