@@ -9,7 +9,7 @@ import anthropic
 import uuid
 import re
 import atexit
-from config import ANTHROPIC_API_KEY, SIGNAL_NUMBER, SYSTEM_PROMPT, AI_ASSISTANT_NICKNAME, MODEL_CONFIG, NOTIFICATION_RECIPIENTS, ACTIVE_CHAT_PERIOD_DAYS
+from config import ANTHROPIC_API_KEY, SIGNAL_NUMBER, SYSTEM_PROMPT, AI_ASSISTANT_NICKNAME, MODEL_CONFIG, NOTIFICATION_RECIPIENTS, ACTIVE_CHAT_PERIOD_DAYS, USAGE_LIMITS_ENABLED, DEFAULT_DAILY_MESSAGE_LIMIT
 from db_utils import log_conversation, get_recent_conversation_history, get_db_connection
 from psycopg2.extras import RealDictCursor
 from location_utils import get_location_from_phone_number, clear_location_cache
@@ -690,6 +690,82 @@ def get_active_chat_groups():
         traceback.print_exc()
         return []
 
+def check_user_message_limit(sender):
+    """
+    Check if a user has reached their daily message limit.
+    Returns (has_reached_limit, messages_used, messages_limit).
+    """
+    # If usage limits are disabled, always return False.
+    if not USAGE_LIMITS_ENABLED:
+        return False, 0, 0
+        
+    # Use the default message limit for all users.
+    user_limit = DEFAULT_DAILY_MESSAGE_LIMIT
+    
+    # If the assistant allows unlimited messages (limit=0), return False.
+    if user_limit == 0:
+        return False, 0, 0
+        
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                # Get the timestamp of the first message today for this user.
+                cur.execute("""
+                    SELECT MIN(timestamp) as first_message
+                    FROM query_log
+                    WHERE sender = %s
+                    AND timestamp::date = CURRENT_DATE
+                """, (sender,))
+                result = cur.fetchone()
+                
+                # If there are no messages today, the user is under the limit.
+                if not result or not result['first_message']:
+                    return False, 0, user_limit
+                
+                # Get the start of the 24-hour period (from their first message today).
+                start_time = result['first_message']
+                
+                # Count messages in the 24-hour period since their first message today.
+                cur.execute("""
+                    SELECT COUNT(*) as message_count
+                    FROM query_log
+                    WHERE sender = %s
+                    AND timestamp >= %s
+                    AND timestamp < %s + INTERVAL '24 hours'
+                """, (sender, start_time, start_time))
+                count_result = cur.fetchone()
+                
+                message_count = count_result['message_count'] if count_result else 0
+                # Check if the user has exceeded their limit.
+                # Use > instead of >= so that users can use their last allowed message.
+                has_reached_limit = message_count > user_limit
+                
+                return has_reached_limit, message_count, user_limit
+                
+    except Exception as e:
+        print(f"Error checking message limit for {sender}: {e}")
+        import traceback
+        traceback.print_exc()
+        # If there's an error, default to not limiting.
+        return False, 0, 0
+
+def format_limit_message(messages_used, messages_limit):
+    """Format a friendly message about the user's limit status."""
+    messages_remaining = messages_limit - messages_used
+    
+    if messages_remaining <= 0:
+        return (
+            f"⚠️ You've reached your daily limit of {messages_limit} messages. "
+            f"Your limit will reset in 24 hours."
+        )
+    elif messages_remaining <= 5:
+        return (
+            f"⚠️ You've used {messages_used} of your {messages_limit} daily messages. "
+            f"You have {messages_remaining} messages remaining for today."
+        )
+    else:
+        return None # No need for a warning message.
+
 def get_group_column_type():
     """Check the data type of the is_group column in the query_log table."""
     try:
@@ -875,6 +951,29 @@ def main():
                 should_respond = not is_group or (is_group and (is_mentioned or check_for_mention(message)))
                 
                 if should_respond:
+                    # Check if the user has reached their message limit.
+                    has_reached_limit = False
+                    limit_message = None
+                    
+                    # Apply limits to both direct messages and group chats.
+                    has_reached_limit, messages_used, messages_limit = check_user_message_limit(sender)
+                    if has_reached_limit:
+                        limit_message = format_limit_message(messages_used, messages_limit)
+                        print(f"User {sender} has reached their limit: {messages_used}/{messages_limit}")
+                        
+                        # Send the limit message to the appropriate destination.
+                        if is_group and group_id:
+                            # For group messages, respond to the user in the group chat.
+                            send_signal_message(SIGNAL_NUMBER, limit_message, proc, group_id)
+                        else:
+                            # For direct messages, respond directly to the sender.
+                            send_signal_message(sender, limit_message, proc)
+                        continue
+                    elif messages_limit > 0: # If there is a limit (not unlimited)
+                        # Check if the user needs to be warned about approaching limits.
+                        warn_message = format_limit_message(messages_used, messages_limit)
+                        if warn_message:
+                            print(f"User {sender} approaching limit: {messages_used}/{messages_limit}")
                     # Create or get conversation ID for this sender or group.
                     if convo_key not in conversations:
                         conversations[convo_key] = str(uuid.uuid4())
@@ -936,56 +1035,56 @@ def main():
                     if not has_content:
                         print("No valid content in message. Skipping generating a response.")
                         continue
-                      try:
-                        # Format the message for database logging to preserve mentions.
-                        formatted_message = format_mentions_for_db(message)
-                        
-                        if images:
-                            print(f"Sending message with {len(images)} images to Claude.")
-                            answer = ask_claude_with_images(processed_message, images, conversations[convo_key], sender, formatted_message)
-                            
-                            # If multiple images were sent, add a note to the beginning of the response.
-                            if multiple_images_sent:
-                                answer = "Since only one image can be processed at a time, I will refer to the last image that you provided.\n\n" + answer
-                                print("Added multiple image notice to response.")
-                        else:
-                            answer = ask_claude(processed_message, conversations[convo_key], sender, formatted_message)
-                        
-                        print(f"Claude's answer: {answer}")
-                          # Log the conversation with all location data available.
-                        # formatted_message was already created above.
-                        log_conversation(
-                            sender, 
-                            formatted_message, 
-                            answer, 
-                            conversations[convo_key], 
-                            is_group, 
-                            group_id, 
-                            sender_name,
-                            country,
-                            city,
-                            possible_carrier,
-                            location,
-                            attachment_paths # Save attachment paths to the database.
-                        )
-                        
-                        max_retries = 3
-                        for attempt in range(max_retries):
-                            try:
-                                if is_group and group_id:
-                                    # For group messages, send to the group and mention the original sender.
-                                    send_signal_message(sender, answer, proc, group_id)
-                                    print(f"Successfully sent group message to group ID {group_id} with mention to {sender} (attempt {attempt + 1})")
-                                else:
-                                    # For direct messages, use the sender's number.
-                                    send_signal_message(sender, answer, proc)
-                                    print(f"Successfully sent direct message to {sender} (attempt {attempt + 1})")
-                                break
-                            except Exception as send_error:
-                                print(f"Failed to send message (attempt {attempt + 1}): {send_error}")
-                                if attempt == max_retries - 1:
-                                    print("Maximum retries reached, message may not have been sent")
-                                time.sleep(2)
+                    try:
+                      # Format the message for database logging to preserve mentions.
+                      formatted_message = format_mentions_for_db(message)
+                      
+                      if images:
+                          print(f"Sending message with {len(images)} images to Claude.")
+                          answer = ask_claude_with_images(processed_message, images, conversations[convo_key], sender, formatted_message)
+                          
+                          # If multiple images were sent, add a note to the beginning of the response.
+                          if multiple_images_sent:
+                              answer = "Since only one image can be processed at a time, I will refer to the last image that you provided.\n\n" + answer
+                              print("Added multiple image notice to response.")
+                      else:
+                          answer = ask_claude(processed_message, conversations[convo_key], sender, formatted_message)
+                      
+                      print(f"Claude's answer: {answer}")
+                        # Log the conversation with all location data available.
+                      # formatted_message was already created above.
+                      log_conversation(
+                          sender, 
+                          formatted_message, 
+                          answer, 
+                          conversations[convo_key], 
+                          is_group, 
+                          group_id, 
+                          sender_name,
+                          country,
+                          city,
+                          possible_carrier,
+                          location,
+                          attachment_paths # Save attachment paths to the database.
+                      )
+                      
+                      max_retries = 3
+                      for attempt in range(max_retries):
+                          try:
+                              if is_group and group_id:
+                                  # For group messages, send to the group and mention the original sender.
+                                  send_signal_message(sender, answer, proc, group_id)
+                                  print(f"Successfully sent group message to group ID {group_id} with mention to {sender} (attempt {attempt + 1})")
+                              else:
+                                  # For direct messages, use the sender's number.
+                                  send_signal_message(sender, answer, proc)
+                                  print(f"Successfully sent direct message to {sender} (attempt {attempt + 1})")
+                              break
+                          except Exception as send_error:
+                              print(f"Failed to send message (attempt {attempt + 1}): {send_error}")
+                              if attempt == max_retries - 1:
+                                  print("Maximum retries reached, message may not have been sent")
+                              time.sleep(2)
                     except Exception as e:
                         print(f"Error getting Claude's response: {e}")
                         import traceback
