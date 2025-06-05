@@ -227,6 +227,53 @@ To view the violation history of a user, run the following command:
 python manage_user_restrictions.py history +<PHONE_NUMBER>
 ```
 
+## Daily message limits (optional)
+
+Aisora includes a message limit system that allows you to control how many messages each user can send within a 24-hour period. This feature helps prevent overuse and ensures fair access for all users.
+
+### How it works
+
+1. Each user has a daily message limit, which is configurable in **config_TEMPLATE.py**.
+2. The limit resets 24 hours after the user's first message of the day.
+3. When a user approaches their limit, they'll receive a warning after each message.
+4. When a user exceeds their limit, they'll receive a notification and must wait until their limit resets.
+
+### Configuration
+
+You can configure message limits in **config_TEMPLATE.py** by changing the following:
+
+```python
+USAGE_LIMITS_ENABLED = True
+DEFAULT_DAILY_MESSAGE_LIMIT = 10
+```
+
+> [!NOTE]
+> 
+> - **`USAGE_LIMITS_ENABLED`:** Set to `False` to disable usage limits entirely. Set to `True` to enable usage limits.
+> - **`DEFAULT_DAILY_MESSAGE_LIMIT`:** Set the messages per day per user. Set to `0` for unlimited messages.
+
+You can also configure the warning threshold and messages in **config_TEMPLATE.py** by changing the following:
+
+```python
+LIMIT_WARNING_THRESHOLD = 5
+LIMIT_WARNING_MESSAGE = "⚠️ You've used {used} of your {limit} daily messages. You have {remaining} messages remaining for today."
+LIMIT_REACHED_MESSAGE = "⚠️ You've reached your daily limit of {limit} messages. Your limit will reset in 24 hours."
+```
+
+> [!NOTE]
+> 
+> **`LIMIT_WARNING_THRESHOLD`:** Show a warning when the user has this many or fewer messages remaining.
+
+The message limit applies to both direct messages and group chats. When a user reaches their limit:
+
+- **In direct messages:** The user receives a limit notification directly.
+- **In group chats:** The limit notification is sent to the group.
+
+> [!INFO]
+>
+> - Warning messages are fully customizable in **config_TEMPLATE.py** by using the template variables `{used}`, `{limit}`, and `{remaining}`.
+- The warning threshold can be adjusted by changing `LIMIT_WARNING_THRESHOLD`.
+
 #### Creating database tables
 
 To set up the required database tables:
