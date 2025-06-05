@@ -110,7 +110,7 @@ Remove `_TEMPLATE` from the filename before using it.
 >
 > **Regarding models**
 >
-> - **Claude:** The default Claude model is **claude-3-5-haiku-20241022**. You can change to a different Claude model in the configuration file.
+> - **Claude:** The default Claude model is **claude-3-5-haiku-latest**. You can change to a different Claude model in the configuration file.
 > - **Llama:** When using Llama models, make sure that you've downloaded a Llama .gguf file from Hugging Face. You must then specify the path of that model in the configuration file. 
 
 ## Start Aisora
@@ -151,8 +151,6 @@ This feature helps users know when Aisora is available to respond and when it mi
 ## Claude content-filtering system
 
 This document describes the content-filtering system implemented for the Aisora's Claude integration to prevent inappropriate content from reaching the language model.
-
-### Overview
 
 The content-filtering system provides a multi-layered approach to filter and block inappropriate, illegal, or unethical requests before they reach Claude. It includes:
 
@@ -228,6 +226,53 @@ To view the violation history of a user, run the following command:
 ```shell
 python manage_user_restrictions.py history +<PHONE_NUMBER>
 ```
+
+## Daily message limits (optional)
+
+Aisora includes a message limit system that allows you to control how many messages each user can send within a 24-hour period. This feature helps prevent overuse and ensures fair access for all users.
+
+### How it works
+
+1. Each user has a daily message limit, which is configurable in **config_TEMPLATE.py**.
+2. The limit resets 24 hours after the user's first message of the day.
+3. When a user approaches their limit, they'll receive a warning after each message.
+4. When a user exceeds their limit, they'll receive a notification and must wait until their limit resets.
+
+### Configuration
+
+You can configure message limits in **config_TEMPLATE.py** by changing the following:
+
+```python
+USAGE_LIMITS_ENABLED = True
+DEFAULT_DAILY_MESSAGE_LIMIT = 10
+```
+
+> [!NOTE]
+> 
+> - **`USAGE_LIMITS_ENABLED`:** Set to `False` to disable usage limits entirely. Set to `True` to enable usage limits.
+> - **`DEFAULT_DAILY_MESSAGE_LIMIT`:** Set the messages per day per user. Set to `0` for unlimited messages.
+
+You can also configure the warning threshold and messages in **config_TEMPLATE.py** by changing the following:
+
+```python
+LIMIT_WARNING_THRESHOLD = 5
+LIMIT_WARNING_MESSAGE = "⚠️ You've used {used} of your {limit} daily messages. You have {remaining} messages remaining for today."
+LIMIT_REACHED_MESSAGE = "⚠️ You've reached your daily limit of {limit} messages. Your limit will reset in 24 hours."
+```
+
+> [!NOTE]
+> 
+> **`LIMIT_WARNING_THRESHOLD`:** Show a warning when the user has this many or fewer messages remaining.
+
+The message limit applies to both direct messages and group chats. When a user reaches their limit:
+
+- **In direct messages:** The user receives a limit notification directly.
+- **In group chats:** The limit notification is sent to the group.
+
+> [!INFO]
+>
+> - Warning messages are fully customizable in **config_TEMPLATE.py** by using the template variables `{used}`, `{limit}`, and `{remaining}`.
+- The warning threshold can be adjusted by changing `LIMIT_WARNING_THRESHOLD`.
 
 #### Creating database tables
 
