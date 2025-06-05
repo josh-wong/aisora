@@ -1,6 +1,6 @@
-# Configuration file for Aisora, an AI assistant for Signal. This file contains sensitive information. Do not share it with anyone.
 # IMPORTANT: Be sure to remove "_TEMPLATE" from the filename before using it.
 
+# Configuration file for Aisora, an AI assistant for Signal. This file contains sensitive information. Do not share it with anyone.
 # Your Claude API key
 ANTHROPIC_API_KEY = "<YOUR_API_KEY>"
 

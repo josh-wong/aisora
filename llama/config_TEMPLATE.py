@@ -1,3 +1,6 @@
+# IMPORTANT: Be sure to remove "_TEMPLATE" from the filename before using it.
+
+# Configuration file for Aisora, an AI assistant for Signal. This file contains sensitive information. Do not share it with anyone.
 import os
 import platform
 
