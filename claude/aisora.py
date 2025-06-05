@@ -9,7 +9,7 @@ import anthropic
 import uuid
 import re
 import atexit
-from config import ANTHROPIC_API_KEY, SIGNAL_NUMBER, SYSTEM_PROMPT, AI_ASSISTANT_NICKNAME, MODEL_CONFIG, NOTIFICATION_RECIPIENTS, ACTIVE_CHAT_PERIOD_DAYS, USAGE_LIMITS_ENABLED, DEFAULT_DAILY_MESSAGE_LIMIT
+from config import ANTHROPIC_API_KEY, SIGNAL_NUMBER, SYSTEM_PROMPT, AI_ASSISTANT_NICKNAME, MODEL_CONFIG, NOTIFICATION_RECIPIENTS, ACTIVE_CHAT_PERIOD_DAYS, USAGE_LIMITS_ENABLED, DEFAULT_DAILY_MESSAGE_LIMIT, LIMIT_WARNING_THRESHOLD, LIMIT_WARNING_MESSAGE, LIMIT_REACHED_MESSAGE
 from db_utils import log_conversation, get_recent_conversation_history, get_db_connection
 from psycopg2.extras import RealDictCursor
 from location_utils import get_location_from_phone_number, clear_location_cache
@@ -724,8 +724,9 @@ def check_user_message_limit(sender):
                 
                 # Get the start of the 24-hour period (from their first message today).
                 start_time = result['first_message']
-                
-                # Count messages in the 24-hour period since their first message today.
+                  # Count messages in the 24-hour period since their first message today.
+                # Subtract 1 from the count to account for the current message that's being processed.
+                # This ensures the system is checking against previous messages, not counting the current one.
                 cur.execute("""
                     SELECT COUNT(*) as message_count
                     FROM query_log
@@ -736,9 +737,11 @@ def check_user_message_limit(sender):
                 count_result = cur.fetchone()
                 
                 message_count = count_result['message_count'] if count_result else 0
+                
                 # Check if the user has exceeded their limit.
-                # Use > instead of >= so that users can use their last allowed message.
-                has_reached_limit = message_count > user_limit
+                # Use >= to check if the user has reached their limit with previous messages.
+                # The current message will be allowed if they haven't yet reached the limit.
+                has_reached_limit = message_count >= user_limit
                 
                 return has_reached_limit, message_count, user_limit
                 
@@ -750,18 +753,21 @@ def check_user_message_limit(sender):
         return False, 0, 0
 
 def format_limit_message(messages_used, messages_limit):
-    """Format a friendly message about the user's limit status."""
-    messages_remaining = messages_limit - messages_used
+    """Format a friendly message about the user's limit status by using configurable templates."""
+    # Add 1 to messages_used to account for the current message being processed.
+    # This gives the user an accurate count that includes their current message.
+    adjusted_messages_used = messages_used + 1
+    messages_remaining = messages_limit - adjusted_messages_used
     
-    if messages_remaining <= 0:
-        return (
-            f"⚠️ You've reached your daily limit of {messages_limit} messages. "
-            f"Your limit will reset in 24 hours."
-        )
-    elif messages_remaining <= 5:
-        return (
-            f"⚠️ You've used {messages_used} of your {messages_limit} daily messages. "
-            f"You have {messages_remaining} messages remaining for today."
+    if messages_remaining < 0:
+        # The user has reached or exceeded their limit.
+        return LIMIT_REACHED_MESSAGE.format(limit=messages_limit)
+    elif messages_remaining <= LIMIT_WARNING_THRESHOLD:
+        # The user is approaching their limit.
+        return LIMIT_WARNING_MESSAGE.format(
+            used=adjusted_messages_used,
+            limit=messages_limit,
+            remaining=messages_remaining
         )
     else:
         return None # No need for a warning message.
@@ -969,11 +975,15 @@ def main():
                             # For direct messages, respond directly to the sender.
                             send_signal_message(sender, limit_message, proc)
                         continue
-                    elif messages_limit > 0: # If there is a limit (not unlimited)
+
+                    # Store the warning message for later if the user is approaching their limit.
+                    warn_message = None
+                    if messages_limit > 0: # If there is a limit (not unlimited)
                         # Check if the user needs to be warned about approaching limits.
                         warn_message = format_limit_message(messages_used, messages_limit)
                         if warn_message:
                             print(f"User {sender} approaching limit: {messages_used}/{messages_limit}")
+
                     # Create or get conversation ID for this sender or group.
                     if convo_key not in conversations:
                         conversations[convo_key] = str(uuid.uuid4())
@@ -1071,6 +1081,7 @@ def main():
                       max_retries = 3
                       for attempt in range(max_retries):
                           try:
+                              # Send the assistant's response.
                               if is_group and group_id:
                                   # For group messages, send to the group and mention the original sender.
                                   send_signal_message(sender, answer, proc, group_id)
@@ -1079,6 +1090,19 @@ def main():
                                   # For direct messages, use the sender's number.
                                   send_signal_message(sender, answer, proc)
                                   print(f"Successfully sent direct message to {sender} (attempt {attempt + 1})")
+                              
+                              # After successfully sending the response, send the warning message if needed.
+                              if warn_message:
+                                  time.sleep(1) # Add a brief delay between messages
+                                  print("Sending limit warning message after response")
+                                  if is_group and group_id:
+                                      # For group messages, respond in the group chat.
+                                      send_signal_message(SIGNAL_NUMBER, warn_message, proc, group_id)
+                                  else:
+                                      # For direct messages, respond directly to the sender.
+                                      send_signal_message(sender, warn_message, proc)
+                              
+                              # Break the retry loop after successful sending.
                               break
                           except Exception as send_error:
                               print(f"Failed to send message (attempt {attempt + 1}): {send_error}")
