@@ -1,6 +1,16 @@
 import os
 import platform
 
+# Model configuration
+USE_LLAMA = True
+MODEL_CONFIG = {
+    # Llama-specific config (used when USE_LLAMA is True)
+    "context_window": 4096, # Context window size for Llama model
+}
+
+# Path to the Llama GGUF model file
+windows_model_path = r"<PATH_TO_LOCAL_GGUF_FILE>"
+
 # Your registered Signal phone number (must start with '+', followed by your country code and phone number)
 SIGNAL_NUMBER = "+<PHONE_NUMBER>"
 
@@ -20,14 +30,6 @@ ACTIVE_CHAT_PERIOD_DAYS = 8
 USAGE_LIMITS_ENABLED = True # Set to False to disable usage limits entirely. Set to True to enable usage limits.
 DEFAULT_DAILY_MESSAGE_LIMIT = 10 # Set the messages per day per user. Set to 0 for unlimited messages.
 
-# Model configuration
-USE_LLAMA = True
-MODEL_CONFIG = {
-    "context_window": 4096, # Context window size for Llama model
-}
-
-# Path to the Llama GGUF model file
-windows_model_path = r"<PATH_TO_LOCAL_GGUF_FILE>"
 # Warning threshold and messages
 LIMIT_WARNING_THRESHOLD = 5 # Show warning when user has this many or fewer messages remaining
 LIMIT_WARNING_MESSAGE = "⚠️ You've used {used} of your {limit} daily messages. You have {remaining} messages remaining for today."
