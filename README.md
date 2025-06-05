@@ -152,8 +152,6 @@ This feature helps users know when Aisora is available to respond and when it mi
 
 This document describes the content-filtering system implemented for the Aisora's Claude integration to prevent inappropriate content from reaching the language model.
 
-### Overview
-
 The content-filtering system provides a multi-layered approach to filter and block inappropriate, illegal, or unethical requests before they reach Claude. It includes:
 
 1. Pattern-based content detection
