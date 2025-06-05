@@ -169,7 +169,7 @@ def send_signal_message(to_number, message, proc, group_id=None):
             json_str = json.dumps(json_request) + "\n"
             proc.stdin.write(json_str)
             proc.stdin.flush()
-            print(f"Sent message part {' to group ' + group_id if group_id else ' to ' + to_number} via JSON-RPC")
+            print(f"Sent message part {'to group ' + group_id if group_id else 'to ' + to_number} via JSON-RPC")
             if len(message_parts) > 1:
                 time.sleep(3)
     except Exception as e:
