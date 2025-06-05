@@ -110,7 +110,7 @@ Remove `_TEMPLATE` from the filename before using it.
 >
 > **Regarding models**
 >
-> - **Claude:** The default Claude model is **claude-3-5-haiku-20241022**. You can change to a different Claude model in the configuration file.
+> - **Claude:** The default Claude model is **claude-3-5-haiku-latest**. You can change to a different Claude model in the configuration file.
 > - **Llama:** When using Llama models, make sure that you've downloaded a Llama .gguf file from Hugging Face. You must then specify the path of that model in the configuration file. 
 
 ## Start Aisora
