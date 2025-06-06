@@ -7,7 +7,7 @@
 AI_CONFIG = {
     'api_key': "<YOUR_API_KEY>",
     'model': {
-        'name': 'claude-3-5-haiku-latest', # Model name (for example, 'claude-3-5-haiku-20241022', 'claude-3-7-sonnet-latest'
+        'name': 'claude-3-5-haiku-latest', # Model name (for example, 'claude-3-5-haiku-20241022', 'claude-3-7-sonnet-latest')
         'max_tokens': 8192, # Maximum number of tokens in the response
         'temperature': 0.7 # Randomness control (0.0-1.0)
     }
