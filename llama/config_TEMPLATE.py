@@ -1,44 +1,49 @@
 # IMPORTANT: Be sure to remove "_TEMPLATE" from the filename before using it.
 
-# Configuration file for Aisora, an AI assistant for Signal. This file contains sensitive information. Do not share it with anyone.
+# Configuration file for Aisora, an AI assistant for Signal.
+# This file contains sensitive information. Do not share it with anyone.
 import os
 import platform
 
-# Model configuration
-USE_LLAMA = True
-MODEL_CONFIG = {
-    # Llama-specific config (used when USE_LLAMA is True)
-    "context_window": 4096, # Context window size for Llama model
+# AI model and configurations
+AI_CONFIG = {
+    'use_llama': True,
+    'model': {
+        'context_window': 4096, # Context window size for Llama model
+        'path': r"<PATH_TO_LOCAL_GGUF_FILE>" # Windows path to the Llama GGUF model file
+    }
 }
 
-# Path to the Llama GGUF model file
-windows_model_path = r"<PATH_TO_LOCAL_GGUF_FILE>"
+# PostgreSQL database settings
+DB_CONFIG = {
+    'dbname': '<DATABASE_NAME>',
+    'user': '<USERNAME>',
+    'password': '<PASSWORD>',
+    'host': 'localhost',
+    'port': '5432'
+}
 
-# Your registered Signal phone number (must start with '+', followed by your country code and phone number)
-SIGNAL_NUMBER = "+<PHONE_NUMBER>"
+# Signal messenger settings
+SIGNAL_CONFIG = {
+    'phone_number': "+<PHONE_NUMBER>", # The registered Signal phone number for the AI assistant. Must start with '+', followed by your country code and phone number.
+    'assistant_nickname': "<NICKNAME>", # AI assistant name for mentions in group chats
+    'notification_recipients': "active_chats", # Recipients for system notifications (startup, shutdown). Set to "active_chats" to notify all users with whom the assistant has active chats. Or specify a list of phone numbers, like ["+1234567890", "+0987654321"].
+    'active_chat_period_days': 8 # Number of days to consider a chat "active" for notifications and status tracking
+}
 
-# Bot name for mentions in group chats
-AI_ASSISTANT_NICKNAME = "<NICKNAME>"
-
-# Recipients for system notifications (startup, shutdown)
-# Set to "active_chats" to notify all users with whom the assistant has active chats.
-# Otherwise, provide a list of specific phone numbers: ["+1234567890", "+0987654321"]
-NOTIFICATION_RECIPIENTS = "active_chats"
-
-# Number of days to consider a chat "active" for notifications and status tracking (default value: 8 days)
-ACTIVE_CHAT_PERIOD_DAYS = 8
-
-# Usage limits
-# The limit resets 24 hours after a user's first message of the day
-USAGE_LIMITS_ENABLED = True # Set to False to disable usage limits entirely. Set to True to enable usage limits.
-DEFAULT_DAILY_MESSAGE_LIMIT = 10 # Set the messages per day per user. Set to 0 for unlimited messages.
-
-# Warning threshold and messages
-LIMIT_WARNING_THRESHOLD = 5 # Show warning when user has this many or fewer messages remaining
-LIMIT_WARNING_MESSAGE = "⚠️ You've used {used} of your {limit} daily messages. You have {remaining} messages remaining for today."
-LIMIT_REACHED_MESSAGE = "⚠️ You've reached your daily limit of {limit} messages. Your limit will reset in 24 hours."
+# Usage limits and messaging
+USAGE_CONFIG = {
+    'enabled': True, # Set to False to disable usage limits entirely.
+    'daily_message_limit': 10, # Set the messages per day per user. Set to 0 for unlimited messages.
+    'warning': {
+        'threshold': 5,
+        'message': "⚠️ You've used {used} of your {limit} daily messages. You have {remaining} messages remaining for today.",
+    },
+    'limit_reached_message': "⚠️ You've reached your daily limit of {limit} messages. Your limit will reset in 24 hours."
+}
 
 # For WSL accessing Windows file paths
+windows_model_path = AI_CONFIG['model']['path']
 if os.path.exists('/proc/version') and 'Microsoft' in open('/proc/version').read():
     # Running in WSL - Convert the Windows path to the WSL path.
     # Convert backslashes to forward slashes for WSL.
@@ -60,16 +65,12 @@ else:  # Regular Linux/Mac - Still use the WSL path to the Windows drive.
         print(f"Warning: Model file not found at {LLAMA_MODEL_PATH}")
         print("Please ensure your Windows drive is mounted properly in WSL")
 
-# Your PostgreSQL database configuration
-DB_CONFIG = {
-    'dbname': '<DATABASE_NAME>',
-    'user': '<USERNAME>',
-    'password': '<PASSWORD>',
-    'host': 'localhost',
-    'port': '5432'
-}
-
-# System prompt that defines how the AI should behave
+# The system prompt for the AI assistant
 SYSTEM_PROMPT = """
 <PROMPT>
+"""
+
+# System prompt for image descriptions - used when the AI is asked to describe images
+IMAGE_SYSTEM_PROMPT = SYSTEM_PROMPT + """
+When shown an image without a specific question, always describe the image in detail without asking for clarification. Never ask what the user wants to know about the image - just provide a comprehensive description. Note that only one image will be processed at a time (the most recently sent one). IMPORTANT: Do not under any circumstances ask for clarification or ask what specific information the user wants about the image. Your task is to directly describe what you see in the image in detail, without waiting for further instructions. DO NOT end your response with questions like 'What would you like to know about this image?' or 'Is there something specific you want to know?' - simply provide the complete visual description. This is a critical requirement.
 """
