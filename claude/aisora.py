@@ -17,10 +17,9 @@ from attachment_helper import get_attachment, process_image_file, extract_attach
 
 # Extract commonly used configuration variables.
 ANTHROPIC_API_KEY = AI_CONFIG['api_key']
-MODEL_CONFIG = AI_CONFIG['model']  # Get the full model config object
-MODEL_NAME = MODEL_CONFIG['name']  # Extract just the name for convenience
-MAX_TOKENS = MODEL_CONFIG['max_tokens']  
-TEMPERATURE = MODEL_CONFIG['temperature']
+MODEL_NAME = AI_CONFIG['model']['name']
+MAX_TOKENS = AI_CONFIG['model']['max_tokens']  
+TEMPERATURE = AI_CONFIG['model']['temperature']
 SIGNAL_NUMBER = SIGNAL_CONFIG['phone_number']
 AI_ASSISTANT_NICKNAME = SIGNAL_CONFIG['assistant_nickname']
 NOTIFICATION_RECIPIENTS = SIGNAL_CONFIG['notification_recipients']
