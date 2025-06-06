@@ -9,14 +9,26 @@ import anthropic
 import uuid
 import re
 import atexit
-from config import ANTHROPIC_API_KEY, SIGNAL_NUMBER, SYSTEM_PROMPT, AI_ASSISTANT_NICKNAME, MODEL_CONFIG, NOTIFICATION_RECIPIENTS, ACTIVE_CHAT_PERIOD_DAYS, USAGE_LIMITS_ENABLED, DEFAULT_DAILY_MESSAGE_LIMIT, LIMIT_WARNING_THRESHOLD, LIMIT_WARNING_MESSAGE, LIMIT_REACHED_MESSAGE
+from config import AI_CONFIG, SIGNAL_CONFIG, USAGE_CONFIG, SYSTEM_PROMPT, IMAGE_SYSTEM_PROMPT
 from db_utils import log_conversation, get_recent_conversation_history, get_db_connection
 from psycopg2.extras import RealDictCursor
 from location_utils import get_location_from_phone_number, clear_location_cache
 from attachment_helper import get_attachment, process_image_file, extract_attachment_id_from_signal_response
 
-# Create a specialized system prompt for image descriptions.
-IMAGE_SYSTEM_PROMPT = SYSTEM_PROMPT + "\nWhen shown an image without a specific question, always describe the image in detail without asking for clarification. Never ask what the user wants to know about the image - just provide a comprehensive description. Note that only one image will be processed at a time (the most recently sent one). IMPORTANT: Do not under any circumstances ask for clarification or ask what specific information the user wants about the image. Your task is to directly describe what you see in the image in detail, without waiting for further instructions. DO NOT end your response with questions like 'What would you like to know about this image?' or 'Is there something specific you want to know?' - simply provide the complete visual description. This is a critical requirement."
+# Extract commonly used configuration variables.
+ANTHROPIC_API_KEY = AI_CONFIG['api_key']
+MODEL_NAME = AI_CONFIG['model']['name']
+MAX_TOKENS = AI_CONFIG['model']['max_tokens']  
+TEMPERATURE = AI_CONFIG['model']['temperature']
+SIGNAL_NUMBER = SIGNAL_CONFIG['phone_number']
+AI_ASSISTANT_NICKNAME = SIGNAL_CONFIG['assistant_nickname']
+NOTIFICATION_RECIPIENTS = SIGNAL_CONFIG['notification_recipients']
+ACTIVE_CHAT_PERIOD_DAYS = SIGNAL_CONFIG['active_chat_period_days']
+USAGE_LIMITS_ENABLED = USAGE_CONFIG['enabled']
+DEFAULT_DAILY_MESSAGE_LIMIT = USAGE_CONFIG['daily_message_limit']
+LIMIT_WARNING_THRESHOLD = USAGE_CONFIG['warning']['threshold']
+LIMIT_WARNING_MESSAGE = USAGE_CONFIG['warning']['message']
+LIMIT_REACHED_MESSAGE = USAGE_CONFIG['limit_reached_message']
 
 # Set an environment variable to enable IP-based location fallback.
 os.environ['ALLOW_IP_FALLBACK'] = 'true'
@@ -267,7 +279,7 @@ def ask_claude_with_images(question, images=None, conversation_id=None, sender=N
     
     try:
         print(f"Calling the Claude API with {len(images) if images else 0} image")
-        print(f"Assigned model: {MODEL_CONFIG['model']}") # Add logging to show which model is used.
+        print(f"Assigned model: {MODEL_NAME}") # Add logging to show which model is being used.
         # Use the specialized image system prompt when there is no question or a very brief one, or if specifically instructed to analyze the image without asking for clarification.
         use_image_prompt = not original_question.strip() or \
                          (len(original_question.strip()) < 15) or \
@@ -276,9 +288,9 @@ def ask_claude_with_images(question, images=None, conversation_id=None, sender=N
         print(f"Using {'specialized image' if use_image_prompt else 'standard'} system prompt")
         
         response = claude.messages.create(
-            model=MODEL_CONFIG['model'],
-            max_tokens=MODEL_CONFIG['max_tokens'],
-            temperature=MODEL_CONFIG['temperature'],
+            model=MODEL_NAME,
+            max_tokens=MAX_TOKENS,
+            temperature=TEMPERATURE,
             system=current_system_prompt,
             messages=messages
         )
@@ -414,13 +426,12 @@ def ask_claude(question, conversation_id=None, sender=None, formatted_content=No
     if not messages:
         messages = [{"role": "user", "content": "Hello"}]
         print("Warning: No valid messages found. Using the default greeting.")
-    
     response = claude.messages.create(
-        model=MODEL_CONFIG['model'],
-        max_tokens=MODEL_CONFIG['max_tokens'],
-        temperature=MODEL_CONFIG['temperature'],
-        system=SYSTEM_PROMPT,
-        messages=messages
+      model=MODEL_NAME,
+      max_tokens=MAX_TOKENS,
+      temperature=TEMPERATURE,
+      system=SYSTEM_PROMPT,
+      messages=messages
     )
     return format_response(response.content[0].text)
 
