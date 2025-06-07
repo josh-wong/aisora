@@ -44,7 +44,7 @@ USAGE_CONFIG = {
     'enabled': True, # Set to False to disable usage limits entirely.
     'daily_message_limit': 10, # Set the messages per day per user. Set to 0 for unlimited messages.
     'warning': {
-        'threshold': 5, # When the user has this many messages left, they wil receive a warning message.
+        'threshold': 5, # When the user has this many messages left, they will receive a warning message.
         'message': "⚠️ You've used {used} of your {limit} daily messages. You have {remaining} messages remaining for today.",
     },
     'limit_reached_message': "⚠️ You've reached your daily limit of {limit} messages. Your limit will reset in 24 hours."
