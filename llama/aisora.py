@@ -10,7 +10,7 @@ import re
 import traceback
 from llama_cpp import Llama
 import atexit
-from config import AI_CONFIG, LLAMA_MODEL_PATH, SIGNAL_CONFIG, USAGE_CONFIG, SYSTEM_PROMPT, IMAGE_SYSTEM_PROMPT
+from config import AI_CONFIG, LLAMA_MODEL_PATH, SIGNAL_CONFIG, USAGE_CONFIG, SYSTEM_PROMPT
 from db_utils import log_conversation, get_recent_conversation_history, get_db_connection
 from psycopg2.extras import RealDictCursor
 from location_utils import get_location_from_phone_number, clear_location_cache
@@ -41,12 +41,12 @@ if USE_LLAMA:
         
         # Extract the GPU-specific settings from MODEL_CONFIG.
         gpu_params = {
-            'n_ctx': MODEL_CONFIG.get('context_window', 4096),
-            'n_batch': MODEL_CONFIG.get('n_batch', 512),
-            'n_gpu_layers': MODEL_CONFIG.get('n_gpu_layers', MODEL_CONFIG.get('gpu_layers', -1)),
-            'offload_kqv': MODEL_CONFIG.get('offload_kqv', True),
-            'main_gpu': MODEL_CONFIG.get('main_gpu', 0),
-            'tensor_split': MODEL_CONFIG.get('tensor_split', None),
+            'n_ctx': MODEL_CONFIG.get('context_window'),
+            'n_batch': MODEL_CONFIG.get('n_batch'),
+            'n_gpu_layers': MODEL_CONFIG.get('n_gpu_layers'),
+            'offload_kqv': MODEL_CONFIG.get('offload_kqv'),
+            'main_gpu': MODEL_CONFIG.get('main_gpu'),
+            'tensor_split': MODEL_CONFIG.get('tensor_split'),
             'verbose': True # Enable verbose mode to see GPU usage info.
         }
         
@@ -258,8 +258,8 @@ def ask_llama(question, conversation_id=None):
     # Generate a response from Llama.
     completion = llama_model.create_completion(
         prompt=prompt,
-        max_tokens=MODEL_CONFIG.get('max_tokens', 2048),
-        temperature=MODEL_CONFIG.get('temperature', 0.7),
+        max_tokens=MODEL_CONFIG.get('max_tokens'),
+        temperature=MODEL_CONFIG.get('temperature'),
         stop=["<|user|>", "<|system|>", "<|/assistant|>"]
     )
     
