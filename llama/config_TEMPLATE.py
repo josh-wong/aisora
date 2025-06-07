@@ -10,7 +10,15 @@ AI_CONFIG = {
     'use_llama': True,
     'model': {
         'context_window': 4096, # Context window size for Llama model
-        'path': r"<PATH_TO_LOCAL_GGUF_FILE>" # Windows path to the Llama GGUF model file
+        'path': r"<PATH_TO_LOCAL_GGUF_FILE>", # Windows path to the Llama GGUF model file
+        'max_tokens': 4096, # Maximum number of tokens when generating a response
+        'temperature': 0.7, # Randomness control when generating a response (0.0 = deterministic, 1.0 = creative)
+        'n_batch': 512, # Batch size for prompt processing
+        'n_gpu_layers': -1, # All layers on GPU (-1), or a specific number like 35 for 35 layers.
+        'offload_kqv': True, # Offloading of key/query/value matrices to the GPU
+        'main_gpu': 0, # GPU to use (0 for first GPU)
+        'tensor_split': None, # For multiple GPUs (set to something like [0.5, 0.5])
+        'verbose': True # Whether to show GPU usage info in Terminal (True to see usage info; False to not show usage info)
     }
 }
 
@@ -36,7 +44,7 @@ USAGE_CONFIG = {
     'enabled': True, # Set to False to disable usage limits entirely.
     'daily_message_limit': 10, # Set the messages per day per user. Set to 0 for unlimited messages.
     'warning': {
-        'threshold': 5,
+        'threshold': 5, # When the user has this many messages left, they will receive a warning message.
         'message': "⚠️ You've used {used} of your {limit} daily messages. You have {remaining} messages remaining for today.",
     },
     'limit_reached_message': "⚠️ You've reached your daily limit of {limit} messages. Your limit will reset in 24 hours."
@@ -54,7 +62,7 @@ if os.path.exists('/proc/version') and 'Microsoft' in open('/proc/version').read
 elif platform.system() == "Windows":
     LLAMA_MODEL_PATH = windows_model_path
     print(f"Windows mode: Using model at {LLAMA_MODEL_PATH}")
-else:  # Regular Linux/Mac - Still use the WSL path to the Windows drive.
+else: # Regular Linux/Mac - Still use the WSL path to the Windows drive.
     # This path is for Ubuntu WSL accessing the Windows drive.
     wsl_ready_path = windows_model_path.replace('\\', '/')
     LLAMA_MODEL_PATH = f"/mnt/{wsl_ready_path[0].lower()}/{wsl_ready_path[2:]}"
