@@ -47,7 +47,7 @@ if USE_LLAMA:
             'offload_kqv': MODEL_CONFIG.get('offload_kqv'),
             'main_gpu': MODEL_CONFIG.get('main_gpu'),
             'tensor_split': MODEL_CONFIG.get('tensor_split'),
-            'verbose': True # Enable verbose mode to see GPU usage info.
+            'verbose': MODEL_CONFIG.get('verbose')
         }
         
         llama_model = Llama(
