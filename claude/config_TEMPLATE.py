@@ -9,7 +9,7 @@ AI_CONFIG = {
     'model': {
         'name': 'claude-3-5-haiku-latest', # Model name (for example, 'claude-3-5-haiku-20241022', 'claude-3-7-sonnet-latest')
         'max_tokens': 8192, # Maximum number of tokens when generating a response
-        'temperature': 0.7 # # Randomness control when generating a response (0.0 = deterministic, 1.0 = creative)
+        'temperature': 0.7 # Randomness control when generating a response (0.0 = deterministic, 1.0 = creative)
     }
 }
 
@@ -35,7 +35,7 @@ USAGE_CONFIG = {
     'enabled': True, # Set to False to disable usage limits entirely.
     'daily_message_limit': 10, # Set the messages per day per user. Set to 0 for unlimited messages.
     'warning': {
-        'threshold': 5, # When the user has this many messages left, they wil receive a warning message.
+        'threshold': 5, # When the user has this many messages left, they will receive a warning message.
         'message': "⚠️ You've used {used} of your {limit} daily messages. You have {remaining} messages remaining for today.",
     },
     'limit_reached_message': "⚠️ You've reached your daily limit of {limit} messages. Your limit will reset in 24 hours."
