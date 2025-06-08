@@ -9,7 +9,7 @@ on:
 
 jobs:
   generate-docs:
-    if: github.event.pull_request.merged == true
+    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
     uses: josh-wong/actions/.github/workflows/auto-docs-generate-reusable.yaml@main
     with:
       output_dir: 'docs/auto-generated' # Optional. Defaults to docs/auto-generated.
