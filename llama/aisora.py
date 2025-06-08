@@ -94,7 +94,7 @@ def format_response(text):
             code_block_content += line + "\n"
         else:
             clean_lines.append(line)
-    
+
     # Process the text without code blocks.
     text = "\n".join(clean_lines)
     
@@ -172,7 +172,7 @@ def format_response(text):
     for i, (language, content) in enumerate(code_blocks):
         marker = f"[CODE_BLOCK_{i}]"
         lang_str = language if language else ""
-        formatted_block = f"```{lang_str}\n{content}```"
+        formatted_block = f"\n```{lang_str}\n{content}```\n"
         result = result.replace(marker, formatted_block)
     
     return result
