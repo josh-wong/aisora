@@ -63,6 +63,11 @@ else:
     print(f"Error loading Llama model")
 
 def format_response(text):
+    # Remove any unwanted Llama format tokens.
+    unwanted_tokens = ["<|assistant|>", "<|/assistant|>", "<|user|>", "<|/user|>", "<|system|>", "<|/system|>"]
+    for token in unwanted_tokens:
+        text = text.replace(token, "")
+    
     # Replace various bullet styles with a unified bullet style.
     text = text.replace('- ', '• ').replace('* ', '• ')
     
