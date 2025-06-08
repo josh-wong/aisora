@@ -50,6 +50,46 @@ else:
     print(f"Error loading Llama model")
 
 def format_response(text):
+    # Ensure code blocks are preserved.
+    # First, identify and extract code blocks with triple backticks.
+    code_blocks = []
+    in_code_block = False
+    code_block_content = ""
+    code_block_language = ""
+    
+    lines = text.split('\n')
+    clean_lines = []
+    
+    for i, line in enumerate(lines):
+        # Check for code block start/end.
+        if line.strip().startswith('```'):
+            if not in_code_block:
+                # Start of code block
+                in_code_block = True
+                code_block_content = ""
+                code_block_language = line.strip()[3:].strip() # Extract language if specified.
+                continue
+            else:
+                # End of code block
+                in_code_block = False
+                code_blocks.append((code_block_language, code_block_content, i))  # Track the end index.
+                clean_lines.append(f"[CODE_BLOCK_START_{len(code_blocks)-1}]")
+                clean_lines.append(f"[CODE_BLOCK_END_{len(code_blocks)-1}]")
+                continue
+        
+        if in_code_block:
+            code_block_content += line + "\n"
+        else:
+            clean_lines.append(line)
+
+    # Process the text without code blocks.
+    text = "\n".join(clean_lines)
+    
+    # Remove any unwanted Llama format tokens from the regular text (not code blocks)
+    unwanted_tokens = ["<|assistant|>", "<|/assistant|>", "<|user|>", "<|/user|>", "<|system|>", "<|/system|>"]
+    for token in unwanted_tokens:
+        text = text.replace(token, "")
+    
     # Replace various bullet styles with a unified bullet style.
     text = text.replace('- ', '• ').replace('* ', '• ')
     
@@ -114,6 +154,13 @@ def format_response(text):
     # Clean up any instances of more than two consecutive newlines.
     while '\n\n\n' in result:
         result = result.replace('\n\n\n', '\n\n')
+    
+    # Reinsert code blocks back into the text.
+    for i, (language, content) in enumerate(code_blocks):
+        marker = f"[CODE_BLOCK_{i}]"
+        lang_str = language if language else ""
+        formatted_block = f"\n```{lang_str}\n{content}```\n"
+        result = result.replace(marker, formatted_block)
     
     return result
 
