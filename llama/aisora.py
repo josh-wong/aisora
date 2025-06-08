@@ -63,13 +63,8 @@ else:
     print(f"Error loading Llama model")
 
 def format_response(text):
-    # Remove any unwanted Llama format tokens.
-    unwanted_tokens = ["<|assistant|>", "<|/assistant|>", "<|user|>", "<|/user|>", "<|system|>", "<|/system|>"]
-    for token in unwanted_tokens:
-        text = text.replace(token, "")
-    
     # Ensure code blocks are preserved.
-    # First, identify code blocks with triple backticks.
+    # First, identify and extract code blocks with triple backticks.
     code_blocks = []
     in_code_block = False
     code_block_content = ""
@@ -101,6 +96,11 @@ def format_response(text):
     
     # Process the text without code blocks.
     text = "\n".join(clean_lines)
+    
+    # Remove any unwanted Llama format tokens from the regular text (not code blocks)
+    unwanted_tokens = ["<|assistant|>", "<|/assistant|>", "<|user|>", "<|/user|>", "<|system|>", "<|/system|>"]
+    for token in unwanted_tokens:
+        text = text.replace(token, "")
     
     # Replace various bullet styles with a unified bullet style.
     text = text.replace('- ', '• ').replace('* ', '• ')
