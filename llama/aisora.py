@@ -85,8 +85,9 @@ def format_response(text):
             else:
                 # End of code block
                 in_code_block = False
-                code_blocks.append((code_block_language, code_block_content))
-                clean_lines.append(f"[CODE_BLOCK_{len(code_blocks)-1}]")
+                code_blocks.append((code_block_language, code_block_content, i))  # Track the end index.
+                clean_lines.append(f"[CODE_BLOCK_START_{len(code_blocks)-1}]")
+                clean_lines.append(f"[CODE_BLOCK_END_{len(code_blocks)-1}]")
                 continue
         
         if in_code_block:
