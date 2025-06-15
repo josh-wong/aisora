@@ -22,7 +22,10 @@ CREATE TABLE IF NOT EXISTS query_log (
     city TEXT,                                     -- City based on phone number
     possible_carrier TEXT,                         -- Possible carrier based on phone number
     location TEXT,                                 -- General location information
-    attachment_paths TEXT                          -- Location where attachments are on the server
+    attachment_paths TEXT,                         -- Location where attachments are on the server
+    model_provider TEXT,                           -- LLM provider name (like "Anthropic")
+    model_name TEXT,                               -- Human-readable name (like "Claude 3 Haiku")
+    model_response_time REAL                       -- Processing duration in seconds
 );
 
 -- Create index for faster queries.
