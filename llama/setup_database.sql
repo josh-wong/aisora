@@ -20,7 +20,10 @@ CREATE TABLE IF NOT EXISTS query_log (
     country TEXT,                     -- Country based on phone number
     city TEXT,                        -- City based on phone number
     possible_carrier TEXT,            -- Possible carrier based on phone number
-    location TEXT                     -- General location information
+    location TEXT,                    -- General location information
+    model_provider TEXT,              -- LLM provider name (in this case, "Meta")
+    model_name TEXT,                  -- Human-readable name (like "Llama 3.2 3B, "Llama 3.3 7B Instruct Uncensored Q6_K", etc.)
+    model_response_time REAL          -- Processing duration in seconds
 );
 
 -- Create index for faster queries.
