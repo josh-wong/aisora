@@ -287,6 +287,9 @@ def ask_claude_with_images(question, images=None, conversation_id=None, sender=N
         current_system_prompt = IMAGE_SYSTEM_PROMPT if use_image_prompt else SYSTEM_PROMPT
         print(f"Using {'specialized image' if use_image_prompt else 'standard'} system prompt")
         
+        # Start timing the response.
+        start_time = time.time()
+        
         response = claude.messages.create(
             model=MODEL_NAME,
             max_tokens=MAX_TOKENS,
@@ -294,8 +297,37 @@ def ask_claude_with_images(question, images=None, conversation_id=None, sender=N
             system=current_system_prompt,
             messages=messages
         )
-        print("Successfully received Claude's response")
-        return format_response(response.content[0].text)
+        
+        # Calculate the response time.
+        end_time = time.time()
+        response_time = end_time - start_time
+        
+        # Extract the model information.
+        model_provider = "Anthropic"
+        model_name = MODEL_NAME
+        
+        # Store the model information for later use.
+        setattr(response, "model_provider", model_provider)
+        setattr(response, "model_name", model_name)
+        setattr(response, "model_response_time", response_time)
+        
+        # Create a response object with both the text response and the model information.
+        class ResponseWithModelInfo:
+            def __init__(self, text, model_provider, model_name, model_response_time):
+                self.text = text
+                self.model_provider = model_provider
+                self.model_name = model_name
+                self.model_response_time = model_response_time
+        
+        formatted_response = format_response(response.content[0].text)
+        
+        print("Successfully received Claude's response.")
+        return ResponseWithModelInfo(
+            formatted_response,
+            model_provider,
+            model_name,
+            response_time
+        )
     except Exception as e:
         print(f"Error in Claude API call: {e}")
         import traceback
@@ -305,6 +337,9 @@ def ask_claude_with_images(question, images=None, conversation_id=None, sender=N
 def ask_claude(question, conversation_id=None, sender=None, formatted_content=None): # Check if any recent images need to be included.
     # Import content filter here to avoid circular imports.
     from content_filter import filter_content
+    
+    # Start timing the response.
+    start_time = time.time()
     
     # Apply content filtering to the question.
     filtered_question, is_filtered, filter_reason = filter_content(question, sender, formatted_content)
@@ -426,6 +461,7 @@ def ask_claude(question, conversation_id=None, sender=None, formatted_content=No
     if not messages:
         messages = [{"role": "user", "content": "Hello"}]
         print("Warning: No valid messages found. Using the default greeting.")
+        
     response = claude.messages.create(
       model=MODEL_NAME,
       max_tokens=MAX_TOKENS,
@@ -433,7 +469,35 @@ def ask_claude(question, conversation_id=None, sender=None, formatted_content=No
       system=SYSTEM_PROMPT,
       messages=messages
     )
-    return format_response(response.content[0].text)
+    # Calculate the response time.
+    end_time = time.time()
+    response_time = end_time - start_time
+    print(f"Response time: {response_time:.2f} seconds")
+    
+    # Extract the model information.
+    model_provider = "Anthropic"
+    model_name = MODEL_NAME
+    # Create a response object with both the text response and model information.
+    class ResponseWithModelInfo:
+        def __init__(self, text, model_provider, model_name, model_response_time):
+            self.text = text
+            self.model_provider = model_provider
+            self.model_name = model_name
+            self.model_response_time = model_response_time
+            
+        def __str__(self):
+            return self.text
+    
+    formatted_response = format_response(response.content[0].text)
+    
+    result = ResponseWithModelInfo(
+        formatted_response,
+        model_provider,
+        model_name,
+        response_time
+    )
+    
+    return result
 
 def listen_for_messages(proc):
     # Keep track of already processed messages to avoid duplicates.
@@ -1057,69 +1121,104 @@ def main():
                         print("No valid content in message. Skipping generating a response.")
                         continue
                     try:
-                      # Format the message for database logging to preserve mentions.
-                      formatted_message = format_mentions_for_db(message)
+                        # Format the message for database logging to preserve mentions.
+                        formatted_message = format_mentions_for_db(message) # Initialize model information variables.
+                        model_provider = "Anthropic"
+                        model_name = MODEL_NAME
+                        model_response_time = None
+                        
+                        try:
+                            if images:
+                                print(f"Sending message with {len(images)} images to Claude.")
+                                response_object = ask_claude_with_images(processed_message, images, conversations[convo_key], sender, formatted_message)
+                                
+                                # Get the text response.
+                                if isinstance(response_object, str):
+                                    answer = response_object
+                                    # No model info available if it's just a string.
+                                else:
+                                    # If ask_claude_with_images returns an object with model info
+                                    answer = response_object.text if hasattr(response_object, 'text') else str(response_object) # Extract model info if available.
+                                    if hasattr(response_object, 'model_name'):
+                                        model_provider = response_object.model_provider
+                                        model_name = response_object.model_name
+                                        model_response_time = response_object.model_response_time
+                                        print(f"Image response has model_response_time: {model_response_time}")
+                                
+                                # If multiple images were sent, add a note to the beginning of the response.
+                                if multiple_images_sent:
+                                    answer = "Since only one image can be processed at a time, I will refer to the last image that you provided.\n\n" + answer
+                                    print("Added multiple image notice to response.")
+                            else:
+                                # For text-only responses, get the answer and model information from ask_claude.
+                                response_object = ask_claude(processed_message, conversations[convo_key], sender, formatted_message)
+                                
+                                if isinstance(response_object, str):
+                                    answer = response_object
+                                    # No model info available if it's just a string.
+                                else:
+                                    # Extract both the answer text and the model info.
+                                    answer = response_object.text if hasattr(response_object, 'text') else str(response_object)
+                                    
+                                    # Get the model information.
+                                    if hasattr(response_object, 'model_name'):
+                                        model_provider = response_object.model_provider
+                                        model_name = response_object.model_name
+                                        model_response_time = response_object.model_response_time
+                                        print(f"Text response has model_response_time: {model_response_time}")
+                        except Exception as e:
+                            print(f"Error processing response object: {e}")
+                        
+                        print(f"Claude's answer: {answer}")
+                        log_conversation(
+                            sender, 
+                            formatted_message, 
+                            answer, 
+                            conversations[convo_key], 
+                            is_group, 
+                            group_id, 
+                            sender_name,
+                            country,
+                            city,
+                            possible_carrier,
+                            location,
+                            attachment_paths,
+                            model_provider,
+                            model_name,
+                            model_response_time
+                        )
                       
-                      if images:
-                          print(f"Sending message with {len(images)} images to Claude.")
-                          answer = ask_claude_with_images(processed_message, images, conversations[convo_key], sender, formatted_message)
-                          
-                          # If multiple images were sent, add a note to the beginning of the response.
-                          if multiple_images_sent:
-                              answer = "Since only one image can be processed at a time, I will refer to the last image that you provided.\n\n" + answer
-                              print("Added multiple image notice to response.")
-                      else:
-                          answer = ask_claude(processed_message, conversations[convo_key], sender, formatted_message)
-                      
-                      print(f"Claude's answer: {answer}")
-                        # Log the conversation with all location data available.
-                      # formatted_message was already created above.
-                      log_conversation(
-                          sender, 
-                          formatted_message, 
-                          answer, 
-                          conversations[convo_key], 
-                          is_group, 
-                          group_id, 
-                          sender_name,
-                          country,
-                          city,
-                          possible_carrier,
-                          location,
-                          attachment_paths # Save attachment paths to the database.
-                      )
-                      
-                      max_retries = 3
-                      for attempt in range(max_retries):
-                          try:
-                              # Send the assistant's response.
-                              if is_group and group_id:
-                                  # For group messages, send to the group and mention the original sender.
-                                  send_signal_message(sender, answer, proc, group_id)
-                                  print(f"Successfully sent group message to group ID {group_id} with mention to {sender} (attempt {attempt + 1})")
-                              else:
-                                  # For direct messages, use the sender's number.
-                                  send_signal_message(sender, answer, proc)
-                                  print(f"Successfully sent direct message to {sender} (attempt {attempt + 1})")
-                              
-                              # After successfully sending the response, send the warning message if needed.
-                              if warn_message:
-                                  time.sleep(1) # Add a brief delay between messages
-                                  print("Sending limit warning message after response")
-                                  if is_group and group_id:
-                                      # For group messages, respond in the group chat.
-                                      send_signal_message(SIGNAL_NUMBER, warn_message, proc, group_id)
-                                  else:
-                                      # For direct messages, respond directly to the sender.
-                                      send_signal_message(sender, warn_message, proc)
-                              
-                              # Break the retry loop after successful sending.
-                              break
-                          except Exception as send_error:
-                              print(f"Failed to send message (attempt {attempt + 1}): {send_error}")
-                              if attempt == max_retries - 1:
-                                  print("Maximum retries reached, message may not have been sent")
-                              time.sleep(2)
+                        max_retries = 3
+                        for attempt in range(max_retries):
+                            try:
+                                # Send the assistant's response.
+                                if is_group and group_id:
+                                    # For group messages, send to the group and mention the original sender.
+                                    send_signal_message(sender, answer, proc, group_id)
+                                    print(f"Successfully sent group message to group ID {group_id} with mention to {sender} (attempt {attempt + 1})")
+                                else:
+                                    # For direct messages, use the sender's number.
+                                    send_signal_message(sender, answer, proc)
+                                    print(f"Successfully sent direct message to {sender} (attempt {attempt + 1})")
+                                
+                                # After successfully sending the response, send the warning message if needed.
+                                if warn_message:
+                                    time.sleep(1) # Add a brief delay between messages.
+                                    print("Sending limit warning message after response")
+                                    if is_group and group_id:
+                                        # For group messages, respond in the group chat.
+                                        send_signal_message(SIGNAL_NUMBER, warn_message, proc, group_id)
+                                    else:
+                                        # For direct messages, respond directly to the sender.
+                                        send_signal_message(sender, warn_message, proc)
+                                
+                                # Break the retry loop after successful sending.
+                                break
+                            except Exception as send_error:
+                                print(f"Failed to send message (attempt {attempt + 1}): {send_error}")
+                                if attempt == max_retries - 1:
+                                    print("Maximum retries reached, message may not have been sent")
+                                time.sleep(2)
                     except Exception as e:
                         print(f"Error getting Claude's response: {e}")
                         import traceback

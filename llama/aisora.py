@@ -28,6 +28,35 @@ LIMIT_WARNING_THRESHOLD = USAGE_CONFIG['warning']['threshold']
 LIMIT_WARNING_MESSAGE = USAGE_CONFIG['warning']['message']
 LIMIT_REACHED_MESSAGE = USAGE_CONFIG['limit_reached_message']
 
+# Function to extract the  model name from the model file path.
+def get_model_name_from_path():
+    """Extract a clean model name from the LLAMA_MODEL_PATH"""
+    try:
+        # Extract the filename from the path.
+        filename = os.path.basename(LLAMA_MODEL_PATH)
+        
+        # Remove the file extension.
+        if filename.endswith('.gguf'):
+            filename = filename[:-5]
+        
+        # Remove any hyphens.
+        clean_name = filename.replace('-', ' ')
+        
+        # Make it more readable with proper capitalization.
+        # Handle specific known model names.
+        if 'llama' in clean_name.lower():
+            # For Llama models, capitalize the "L" in Llama.
+            parts = clean_name.split()
+            for i, part in enumerate(parts):
+                if 'llama' in part.lower():
+                    parts[i] = part.replace('llama', 'Llama')
+            clean_name = ' '.join(parts)
+        
+        return clean_name
+    except Exception as e:
+        print(f"Error extracting model name from path: {e}")
+        return "Llama model" # Default fallback name.
+
 # Set an environment variable to enable IP-based location fallback.
 os.environ['ALLOW_IP_FALLBACK'] = 'true'
 
@@ -271,6 +300,9 @@ def format_conversation_history(history):
 
 def ask_llama(question, conversation_id=None):
     """Query the Llama model with the provided question and conversation history."""
+    # Start timing the response.
+    start_time = time.time()
+    
     messages = []
     
     # Include the conversation history if available.
@@ -310,9 +342,39 @@ def ask_llama(question, conversation_id=None):
         stop=["<|user|>", "<|system|>", "<|/assistant|>"]
     )
     
+    # Calculate the response time.
+    end_time = time.time()
+    response_time = end_time - start_time
+    print(f"Response time: {response_time:.2f} seconds")
+    
+    # Extract the model information.
+    model_name = get_model_name_from_path()
+    model_provider = "Meta"
+    
+    # Create a response object with both the text response and model information.
+    class ResponseWithModelInfo:
+        def __init__(self, text, model_provider, model_name, model_response_time):
+            self.text = text
+            self.model_provider = model_provider
+            self.model_name = model_name
+            self.model_response_time = model_response_time
+            
+        def __str__(self):
+            return self.text
+    
     # Extract and format the response.
-    response = completion["choices"][0]["text"]
-    return format_response(response)
+    response_text = completion["choices"][0]["text"]
+    formatted_response = format_response(response_text)
+    
+    # Create and return the response object.
+    result = ResponseWithModelInfo(
+        formatted_response,
+        model_provider,
+        model_name,
+        response_time
+    )
+    
+    return result
 
 def check_user_message_limit(sender):
     """
@@ -362,8 +424,8 @@ def check_user_message_limit(sender):
                 message_count = count_result['message_count'] if count_result else 0
                 
                 # Check if the user has reached their limit.
-                # Use >= to check if they've reached their limit with previous messages
-                # The current message will be allowed if they haven't yet reached the limit
+                # Use >= to check if they've reached their limit with previous messages.
+                # The current message will be allowed if they haven't yet reached the limit.
                 has_reached_limit = message_count >= user_limit
                 
                 return has_reached_limit, message_count, user_limit
@@ -795,7 +857,7 @@ def main():
         if current_time - last_cache_clear > cache_clear_interval:
             clear_location_cache()
             last_cache_clear = current_time
-            print("Location cache cleared due to scheduled refresh")
+            print("Location cache cleared due to scheduled refresh.")
 
         try:
             for sender, message, is_group, group_id, is_mentioned, sender_name in listen_for_messages(proc):
@@ -845,17 +907,42 @@ def main():
                     convo_key = group_id if is_group and group_id else sender
                     if convo_key not in conversations:
                         conversations[convo_key] = str(uuid.uuid4())
-
                     # Remove the mention from the message if it's a group message.
                     processed_message = remove_mention(message) if is_group else message
                     
                     try:
-                        # Call the appropriate AI model based on configuration
+                        # Call the appropriate Llama model based on the configuration.
                         if USE_LLAMA:
-                            answer = ask_llama(processed_message, conversations[convo_key])
+                            response_object = ask_llama(processed_message, conversations[convo_key])
+                            
+                            if isinstance(response_object, str):
+                                answer = response_object
+                                # No model info available if it's just a string.
+                                model_provider = "Meta"
+                                model_name = get_model_name_from_path()
+                                model_response_time = None
+                            else:
+                                # Extract both the answer text and the model info.
+                                answer = response_object.text if hasattr(response_object, 'text') else str(response_object)
+                                
+                                # Get the model information.
+                                if hasattr(response_object, 'model_name'):
+                                    model_provider = response_object.model_provider
+                                    model_name = response_object.model_name
+                                    model_response_time = response_object.model_response_time
+                                    print(f"Response has model_response_time: {model_response_time}")
+                                else:
+                                    model_provider = "Meta"
+                                    model_name = get_model_name_from_path()
+                                    model_response_time = None
+                                    
                             print(f"Llama's answer: {answer}")
                         else:
-                            print(f"Error processing message with Llama model")
+                            print(f"Error processing message with Llama model.")
+                            answer = "Error processing your request with the Llama model."
+                            model_provider = None
+                            model_name = None
+                            model_response_time = None
                         
                         # Log the conversation with all location data available.
                         formatted_message = format_mentions_for_db(message)
@@ -870,7 +957,10 @@ def main():
                             country,
                             city,
                             possible_carrier,
-                            location
+                            location,
+                            model_provider,
+                            model_name,
+                            model_response_time
                         )
                         
                         max_retries = 3
