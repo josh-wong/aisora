@@ -52,7 +52,7 @@ def get_location_from_phone_number(phone_number, force_refresh=False):
         location_string = None
         
         try:
-            # Initialize geolocator once for all geocoding operations
+            # Initialize geolocator once for all geocoding operations.
             geolocator = Nominatim(user_agent="aisora_claude")
             
             # Only proceed if there's a country.
