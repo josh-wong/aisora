@@ -52,14 +52,15 @@ def get_location_from_phone_number(phone_number, force_refresh=False):
         location_string = None
         
         try:
+            # Initialize geolocator once for all geocoding operations
+            geolocator = Nominatim(user_agent="aisora_claude")
+            
             # Only proceed if there's a country.
             if country:
+                
                 # Method 1: Use the region and country together for geocoding.
                 if region and region != country:
                     search_query = f"{region}, {country}"
-                    
-                    # Use the Nominatim geocoding service.
-                    geolocator = Nominatim(user_agent="aisora_claude")
                     location = geolocator.geocode(search_query, exactly_one=True, timeout=10)
                     
                     if location:
@@ -88,9 +89,7 @@ def get_location_from_phone_number(phone_number, force_refresh=False):
                     if area_code:
                         # Try to look up just the area code in the country.
                         area_search = f"{area_code} {country}"
-                        area_location = None
-                        if geolocator:
-                            area_location = geolocator.geocode(area_search, exactly_one=True, timeout=10)
+                        area_location = geolocator.geocode(area_search, exactly_one=True, timeout=10)
                         if area_location:
                             address = area_location.raw.get('address', {})
                             area_city = (address.get('city') or 
@@ -107,9 +106,6 @@ def get_location_from_phone_number(phone_number, force_refresh=False):
                                     location_string = f"{area_location.latitude},{area_location.longitude}"
                 
                 # Method 3: If a city is still not found, try the region as a direct lookup.
-                # Ensure geolocator is initialized before use.
-                if 'geolocator' not in locals():
-                  geolocator = Nominatim(user_agent="aisora_claude")
                 if not city and region:
                     region_location = geolocator.geocode(region, exactly_one=True, timeout=10)
                     if region_location:
