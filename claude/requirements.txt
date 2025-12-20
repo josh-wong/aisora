@@ -5,4 +5,5 @@ phonenumbers
 pillow
 psutil
 psycopg2-binary
+redis
 requests

@@ -9,11 +9,24 @@ import anthropic
 import uuid
 import re
 import atexit
-from config import AI_CONFIG, SIGNAL_CONFIG, USAGE_CONFIG, SYSTEM_PROMPT, IMAGE_SYSTEM_PROMPT
+import redis
+from config import AI_CONFIG, SIGNAL_CONFIG, USAGE_CONFIG, SYSTEM_PROMPT, IMAGE_SYSTEM_PROMPT, REDIS_CONFIG
 from db_utils import log_conversation, get_recent_conversation_history, get_db_connection
 from psycopg2.extras import RealDictCursor
 from location_utils import get_location_from_phone_number, clear_location_cache
 from attachment_helper import get_attachment, process_image_file, extract_attachment_id_from_signal_response
+
+# Initialize the Redis client (the default is localhost:6379, but adjust as it needed).
+REDIS_HOST = REDIS_CONFIG.get('host', 'localhost')
+REDIS_PORT = REDIS_CONFIG.get('port', 6379)
+REDIS_DB = REDIS_CONFIG.get('db', 0)
+REDIS_PASSWORD = REDIS_CONFIG.get('password', None)
+CACHE_TTL = REDIS_CONFIG.get('cache_ttl', 600) # In seconds (10 minutes by default)
+
+redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB, password=REDIS_PASSWORD, decode_responses=True)
+
+CACHE_HIT_KEY = 'claude_cache_hits'
+CACHE_MISS_KEY = 'claude_cache_misses'
 
 # Extract commonly used configuration variables.
 ANTHROPIC_API_KEY = AI_CONFIG['api_key']
@@ -219,6 +232,12 @@ def get_recent_attachment_paths(conversation_id, limit=1):
             
             return attachment_paths
 
+def make_cache_key(function_name, *args, **kwargs):
+    """Generate a cache key based on function name, args, and kwargs."""
+    import hashlib
+    key_data = json.dumps({'fn': function_name, 'args': args, 'kwargs': kwargs}, sort_keys=True, default=str)
+    return f"{function_name}:" + hashlib.sha256(key_data.encode()).hexdigest()
+
 def ask_claude_with_images(question, images=None, conversation_id=None, sender=None, formatted_content=None):
     """Send a message to Claude with optional image."""
     # Import content filter here to avoid circular imports.
@@ -277,6 +296,16 @@ def ask_claude_with_images(question, images=None, conversation_id=None, sender=N
                 formatted_history = format_conversation_history(valid_history)
                 messages = formatted_history + messages
     
+    # Check Redis cache first.
+    cache_key = make_cache_key('ask_claude_with_images', question, images, conversation_id, sender, formatted_content)
+    cached = redis_client.get(cache_key)
+    if cached:
+        redis_client.incr(CACHE_HIT_KEY)
+        print(f"[CACHE HIT] ask_claude_with_images: {cache_key}")
+        return json.loads(cached)
+    redis_client.incr(CACHE_MISS_KEY)
+    print(f"[CACHE MISS] ask_claude_with_images: {cache_key}")
+    
     try:
         print(f"Calling the Claude API with {len(images) if images else 0} image")
         print(f"Assigned model: {MODEL_NAME}") # Add logging to show which model is being used.
@@ -322,12 +351,14 @@ def ask_claude_with_images(question, images=None, conversation_id=None, sender=N
         formatted_response = format_response(response.content[0].text)
         
         print("Successfully received Claude's response.")
-        return ResponseWithModelInfo(
-            formatted_response,
-            model_provider,
-            model_name,
-            response_time
-        )
+        result = {
+            'text': formatted_response,
+            'model_provider': model_provider,
+            'model_name': model_name,
+            'model_response_time': response_time
+        }
+        redis_client.setex(cache_key, CACHE_TTL, json.dumps(result))
+        return ResponseWithModelInfo(**result)
     except Exception as e:
         print(f"Error in Claude API call: {e}")
         import traceback
@@ -462,6 +493,16 @@ def ask_claude(question, conversation_id=None, sender=None, formatted_content=No
         messages = [{"role": "user", "content": "Hello"}]
         print("Warning: No valid messages found. Using the default greeting.")
         
+    # Check Redis cache first.
+    cache_key = make_cache_key('ask_claude', question, conversation_id, sender, formatted_content)
+    cached = redis_client.get(cache_key)
+    if cached:
+        redis_client.incr(CACHE_HIT_KEY)
+        print(f"[CACHE HIT] ask_claude: {cache_key}")
+        return json.loads(cached)
+    redis_client.incr(CACHE_MISS_KEY)
+    print(f"[CACHE MISS] ask_claude: {cache_key}")
+    
     response = claude.messages.create(
       model=MODEL_NAME,
       max_tokens=MAX_TOKENS,
@@ -490,14 +531,16 @@ def ask_claude(question, conversation_id=None, sender=None, formatted_content=No
     
     formatted_response = format_response(response.content[0].text)
     
-    result = ResponseWithModelInfo(
-        formatted_response,
-        model_provider,
-        model_name,
-        response_time
-    )
+    # Cache the result.
+    result = {
+        'text': formatted_response,
+        'model_provider': model_provider,
+        'model_name': model_name,
+        'model_response_time': response_time
+    }
+    redis_client.setex(cache_key, CACHE_TTL, json.dumps(result))
     
-    return result
+    return ResponseWithModelInfo(**result)
 
 def listen_for_messages(proc):
     # Keep track of already processed messages to avoid duplicates.

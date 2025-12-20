@@ -22,6 +22,15 @@ DB_CONFIG = {
     'port': '5432'
 }
 
+# Redis cache settings
+REDIS_CONFIG = {
+    'host': 'localhost',
+    'port': 6379,
+    'db': 0,
+    'password': None, # Set password if Redis requires authentication
+    'cache_ttl': 600 # Cache expiration time in seconds (10 minutes default)
+}
+
 # Signal messenger settings
 SIGNAL_CONFIG = {
     'phone_number': "+<PHONE_NUMBER>", # The registered Signal phone number for the AI assistant. Must start with '+', followed by your country code and phone number.

@@ -10,10 +10,11 @@ import re
 import traceback
 from llama_cpp import Llama
 import atexit
-from config import AI_CONFIG, LLAMA_MODEL_PATH, SIGNAL_CONFIG, USAGE_CONFIG, SYSTEM_PROMPT
+from config import AI_CONFIG, LLAMA_MODEL_PATH, SIGNAL_CONFIG, USAGE_CONFIG, SYSTEM_PROMPT, REDIS_CONFIG
 from db_utils import log_conversation, get_recent_conversation_history, get_db_connection
 from psycopg2.extras import RealDictCursor
 from location_utils import get_location_from_phone_number, clear_location_cache
+import redis
 
 # Extract commonly used configuration variables.
 USE_LLAMA = AI_CONFIG['use_llama']
@@ -27,6 +28,18 @@ DEFAULT_DAILY_MESSAGE_LIMIT = USAGE_CONFIG['daily_message_limit']
 LIMIT_WARNING_THRESHOLD = USAGE_CONFIG['warning']['threshold']
 LIMIT_WARNING_MESSAGE = USAGE_CONFIG['warning']['message']
 LIMIT_REACHED_MESSAGE = USAGE_CONFIG['limit_reached_message']
+
+# Initialize the Redis client (the default is localhost:6379, but adjust as it needed).
+REDIS_HOST = REDIS_CONFIG.get('host', 'localhost')
+REDIS_PORT = REDIS_CONFIG.get('port', 6379)
+REDIS_DB = REDIS_CONFIG.get('db', 0)
+REDIS_PASSWORD = REDIS_CONFIG.get('password', None)
+CACHE_TTL = REDIS_CONFIG.get('cache_ttl', 600) # In seconds (10 minutes by default)
+
+redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB, password=REDIS_PASSWORD, decode_responses=True)
+
+CACHE_HIT_KEY = 'llama_cache_hits'
+CACHE_MISS_KEY = 'llama_cache_misses'
 
 # Function to extract the  model name from the model file path.
 def get_model_name_from_path():
@@ -298,6 +311,12 @@ def format_conversation_history(history):
         ])
     return formatted
 
+def make_cache_key(function_name, *args, **kwargs):
+    """Generate a cache key based on function name, args, and kwargs."""
+    import hashlib
+    key_data = json.dumps({'fn': function_name, 'args': args, 'kwargs': kwargs}, sort_keys=True, default=str)
+    return f"{function_name}:" + hashlib.sha256(key_data.encode()).hexdigest()
+
 def ask_llama(question, conversation_id=None):
     """Query the Llama model with the provided question and conversation history."""
     # Start timing the response.
@@ -333,6 +352,25 @@ def ask_llama(question, conversation_id=None):
     
     # Request a completion from the assistant.
     prompt += "<|assistant|>\n"
+    
+    # Check Redis cache first.
+    cache_key = make_cache_key('ask_llama', question, conversation_id)
+    cached = redis_client.get(cache_key)
+    if cached:
+        redis_client.incr(CACHE_HIT_KEY)
+        print(f"[CACHE HIT] ask_llama: {cache_key}")
+        cached_obj = json.loads(cached)
+        class ResponseWithModelInfo:
+            def __init__(self, text, model_provider, model_name, model_response_time):
+                self.text = text
+                self.model_provider = model_provider
+                self.model_name = model_name
+                self.model_response_time = model_response_time
+            def __str__(self):
+                return self.text
+        return ResponseWithModelInfo(**cached_obj)
+    redis_client.incr(CACHE_MISS_KEY)
+    print(f"[CACHE MISS] ask_llama: {cache_key}")
     
     # Generate a response from Llama.
     completion = llama_model.create_completion(
@@ -374,7 +412,16 @@ def ask_llama(question, conversation_id=None):
         response_time
     )
     
-    return result
+    # Cache the result.
+    result_for_cache = {
+        'text': formatted_response,
+        'model_provider': model_provider,
+        'model_name': model_name,
+        'model_response_time': response_time
+    }
+    redis_client.setex(cache_key, CACHE_TTL, json.dumps(result_for_cache))
+    
+    return ResponseWithModelInfo(**result_for_cache)
 
 def check_user_message_limit(sender):
     """
