@@ -11,7 +11,8 @@ import traceback
 from llama_cpp import Llama
 import atexit
 from config import AI_CONFIG, LLAMA_MODEL_PATH, SIGNAL_CONFIG, USAGE_CONFIG, SYSTEM_PROMPT
-from db_utils import log_conversation, get_recent_conversation_history, get_db_connection
+from db_utils import log_conversation, get_recent_conversation_history, get_db_connection, get_recent_attachment_paths
+from attachment_helper import get_attachment, process_image_file, extract_attachment_id_from_signal_response, describe_image_with_text
 from psycopg2.extras import RealDictCursor
 from location_utils import get_location_from_phone_number, clear_location_cache
 
@@ -497,8 +498,15 @@ def listen_for_messages(proc):
                     print(f"Bot was officially mentioned in metadata: {mention}")
                     break
             
-            if source and message_text:
-                yield source, message_text, is_group, group_id, is_mentioned, sender_name
+            # Extract attachments if any.
+            attachments = message_data.get("attachments", [])
+            attachment_ids = [att.get("id") for att in attachments if att.get("contentType", "").startswith("image/")]
+            
+            # Yield if there's either message text or attachments
+            if source and (message_text or attachment_ids):
+                # Use empty string for message_text if None
+                message_text = message_text or ""
+                yield source, message_text, is_group, group_id, is_mentioned, sender_name, attachment_ids
 
 def check_for_mention(message):
     """Check if the assistant was mentioned in the message"""
@@ -860,7 +868,7 @@ def main():
             print("Location cache cleared due to scheduled refresh.")
 
         try:
-            for sender, message, is_group, group_id, is_mentioned, sender_name in listen_for_messages(proc):
+            for sender, message, is_group, group_id, is_mentioned, sender_name, attachment_ids in listen_for_messages(proc):
                 print(f"Received from {sender}: {message}")
                 
                 # Try to extract location from phone number if it starts with a +.
@@ -907,8 +915,77 @@ def main():
                     convo_key = group_id if is_group and group_id else sender
                     if convo_key not in conversations:
                         conversations[convo_key] = str(uuid.uuid4())
+                    
                     # Remove the mention from the message if it's a group message.
                     processed_message = remove_mention(message) if is_group else message
+                    
+                    # Process attachments if any.
+                    attachment_paths = []
+                    attachment_error = False
+                    attachment_response = ""
+                    
+                    if attachment_ids:
+                        print(f"Processing {len(attachment_ids)} attachment(s)")
+                        
+                        # For Llama models that don't support vision, we'll describe the image
+                        for attachment_id in attachment_ids:
+                            try:
+                                attachment_path = get_attachment(attachment_id, proc)
+                                if attachment_path:
+                                    attachment_paths.append(attachment_path)
+                                    # Generate description since Llama models typically don't support vision
+                                    image_description = describe_image_with_text(attachment_path)
+                                    if image_description:
+                                        attachment_response = image_description
+                                        print(f"Generated image description for attachment.")
+                                    else:
+                                        print(f"Failed to process image description from {attachment_path}")
+                                        attachment_error = True
+                                else:
+                                    print(f"Failed to download attachment ID: {attachment_id}")
+                                    attachment_error = True
+                            except Exception as img_err:
+                                print(f"Error handling attachment: {img_err}")
+                                attachment_error = True
+                    
+                    # If there's only an image and no text, respond with the image description
+                    if attachment_response and not processed_message.strip():
+                        answer = attachment_response
+                        
+                        # Log the conversation with attachment paths.
+                        log_conversation(
+                            sender=sender,
+                            query=format_mentions_for_db(message) if message else "[Image attachment]",
+                            response=answer,
+                            conversation_id=conversations[convo_key],
+                            is_group=is_group,
+                            group_id=group_id,
+                            sender_name=sender_name,
+                            country=country,
+                            city=city,
+                            possible_carrier=possible_carrier,
+                            location=location,
+                            attachment_paths=attachment_paths,
+                            model_provider="Meta",
+                            model_name=get_model_name_from_path(),
+                            model_response_time=None
+                        )
+                        
+                        # Send the response.
+                        if is_group and group_id:
+                            send_signal_message(SIGNAL_NUMBER, answer, proc, group_id)
+                        else:
+                            send_signal_message(sender, answer, proc)
+                        continue
+                    
+                    # If there's both text and an attachment, append the image description to the message
+                    if attachment_response and processed_message.strip():
+                        processed_message = f"{processed_message}\n\n[Image received: {attachment_response}]"
+                    
+                    # Skip processing if there's no content
+                    if not processed_message.strip():
+                        print("No valid content in message. Skipping generating a response.")
+                        continue
                     
                     try:
                         # Call the appropriate Llama model based on the configuration.
@@ -958,6 +1035,7 @@ def main():
                             city,
                             possible_carrier,
                             location,
+                            attachment_paths,
                             model_provider,
                             model_name,
                             model_response_time
