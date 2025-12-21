@@ -1,4 +1,5 @@
 import psycopg2
+import json
 from psycopg2.extras import RealDictCursor
 from config import DB_CONFIG
 
@@ -6,19 +7,24 @@ def get_db_connection():
     return psycopg2.connect(**DB_CONFIG)
 
 def log_conversation(sender, query, response, conversation_id, is_group=False, group_id=None, 
-                 sender_name=None, country=None, city=None, possible_carrier=None, location=None,
+                 sender_name=None, country=None, city=None, possible_carrier=None, location=None, attachment_paths=None,
                  model_provider=None, model_name=None, model_response_time=None):
     """Log a conversation to the database."""
+    # Convert the attachment_paths list to JSON string if provided.
+    attachment_paths_json = None
+    if attachment_paths:
+        attachment_paths_json = json.dumps(attachment_paths)
+    
     with get_db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute('''
                 INSERT INTO query_log 
                 (sender, query, response, timestamp, conversation_id, is_group, group_id, 
-                sender_name, country, city, possible_carrier, location,
+                sender_name, country, city, possible_carrier, location, attachment_paths,
                 model_provider, model_name, model_response_time)
-                VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ''', (sender, query, response, conversation_id, is_group, group_id, 
-                 sender_name, country, city, possible_carrier, location,
+                 sender_name, country, city, possible_carrier, location, attachment_paths_json,
                  model_provider, model_name, model_response_time))
         conn.commit()
 
@@ -45,3 +51,26 @@ def get_recent_conversation_history(conversation_id, limit=5):
             """, (conversation_id, limit))
             history = cur.fetchall()
             return list(reversed(history))
+
+def get_recent_attachment_paths(conversation_id, limit=1):
+    """Get the most recent attachment paths from the conversation history."""
+    with get_db_connection() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                SELECT attachment_paths 
+                FROM query_log 
+                WHERE conversation_id = %s AND attachment_paths IS NOT NULL
+                ORDER BY timestamp DESC 
+                LIMIT %s
+            """, (conversation_id, limit))
+            results = cur.fetchall()
+            
+            # Extract and flatten attachments from results.
+            attachment_paths = []
+            for result in results:
+                if result['attachment_paths']:
+                    paths = json.loads(result['attachment_paths'])
+                    if isinstance(paths, list):
+                        attachment_paths.extend(paths)
+            
+            return attachment_paths
