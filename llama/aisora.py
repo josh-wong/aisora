@@ -128,11 +128,20 @@ def format_response(text):
     # Process the text without code blocks.
     text = "\n".join(clean_lines)
     
-    # Remove any unwanted Llama format tokens from the regular text (not code blocks)
-    unwanted_tokens = ["<|assistant|>", "<|/assistant|>", "<|user|>", "<|/user|>", "<|system|>", "<|/system|>"]
+   # Remove any unwanted Llama format tokens and garbage from the regular text (not code blocks)
+    unwanted_tokens = [
+        "<|assistant|>", "<|/assistant|>", "<|user|>", "<|/user|>", "<|system|>", "<|/system|>",
+        "<|/", "<|", "</s>", "<s>", "[INST]", "[/INST]", "<3>", "<3", "3>"
+    ]
     for token in unwanted_tokens:
         text = text.replace(token, "")
-    
+
+    # Remove repeated patterns like "<3> <3> <3>..."
+    import re
+    text = re.sub(r'(<3>\s*){2,}', '', text)
+    text = re.sub(r'(<3\s*){2,}', '', text)
+    text = re.sub(r'(3>\s*){2,}', '', text)
+        
     # Replace various bullet styles with a unified bullet style.
     text = text.replace('- ', '• ').replace('* ', '• ')
     
@@ -340,7 +349,7 @@ def ask_llama(question, conversation_id=None):
         prompt=prompt,
         max_tokens=MODEL_CONFIG.get('max_tokens'),
         temperature=MODEL_CONFIG.get('temperature'),
-        stop=["<|user|>", "<|system|>", "<|/assistant|>"]
+        stop=["<|user|>", "<|system|>", "<|/assistant|>", "<|/", "<|", "<3>", "</s>", "[INST]", "[/INST]"]
     )
     
     # Calculate the response time.
@@ -365,6 +374,28 @@ def ask_llama(question, conversation_id=None):
     
     # Extract and format the response.
     response_text = completion["choices"][0]["text"]
+    
+    # Additional cleanup for common garbage patterns
+    response_text = response_text.strip()
+    # Remove any remaining garbage tokens at the start or end
+    while response_text.startswith(('<', '3>', '<3')) or response_text.endswith(('<', '<3', '3>')):
+        if response_text.startswith('<'):
+            # Find the end of the token and remove it
+            end_idx = response_text.find('>', 0) + 1
+            if end_idx > 0:
+                response_text = response_text[end_idx:].strip()
+            else:
+                response_text = response_text[1:].strip()
+        elif response_text.startswith(('3>', '<3')):
+            response_text = response_text[2:].strip()
+        elif response_text.endswith(('<', '<3', '3>')):
+            if response_text.endswith('<3'):
+                response_text = response_text[:-2].strip()
+            elif response_text.endswith('3>'):
+                response_text = response_text[:-2].strip()
+            else:
+                response_text = response_text[:-1].strip()
+    
     formatted_response = format_response(response_text)
     
     # Create and return the response object.
